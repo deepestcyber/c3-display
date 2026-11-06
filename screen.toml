@@ -9,9 +9,8 @@ duration = "15s"
 path     = "life.html"
 duration = "15s"
 
-# Wireworld is not a page of its own yet; the reel shows it on request.
 [[page]]
-path     = "reel.html?anim=wireworld"
+path     = "wireworld.html"
 duration = "15s"
 
 [[page]]
