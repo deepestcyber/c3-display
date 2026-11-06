@@ -1,0 +1,16 @@
+# Rotation for the tinker display: three pages in order, 5 seconds each.
+# Each page gets its display time as ?duration=, to drive its progress bar.
+title    = "Tinker"
+rotation = "sequential"
+
+[[page]]
+path     = "one.html?duration=5s"
+duration = "5s"
+
+[[page]]
+path     = "two.html?duration=5s"
+duration = "5s"
+
+[[page]]
+path     = "three.html?duration=5s"
+duration = "5s"
