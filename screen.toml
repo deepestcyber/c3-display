@@ -1,0 +1,15 @@
+# Rotation for the tinker display: three pages in order, 10 seconds each.
+title    = "Tinker"
+rotation = "sequential"
+
+[[page]]
+path     = "one.html"
+duration = "10s"
+
+[[page]]
+path     = "two.html"
+duration = "10s"
+
+[[page]]
+path     = "three.html"
+duration = "10s"
