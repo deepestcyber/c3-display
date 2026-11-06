@@ -1,0 +1,11 @@
+/* Entry point of the theme layer. Pages link only this file and theme.js:
+
+     <link rel="stylesheet" href="theme/theme.css">
+     <script src="theme/theme.js"></script>
+
+   The last import picks the default theme. To switch the default for this repository,
+   change that one line. A page can be shown in another theme with ?theme=<name>
+   (a file in themes/), e.g. life.html?theme=40c3. */
+@import url("fonts/fonts.css");
+@import url("base.css");
+@import url("themes/dc.css");

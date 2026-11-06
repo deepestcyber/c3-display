@@ -1,0 +1,19 @@
+/* Demo theme to try the switch (?theme=neon): magenta and cyan, square titles.
+   Only overrides some tokens; everything else comes from the default theme. */
+:root {
+  --backdrop: radial-gradient(ellipse 80% 70% at 30% 60%, rgba(255, 0, 170, 0.12), transparent 70%),
+              radial-gradient(ellipse 70% 60% at 75% 35%, rgba(0, 230, 255, 0.10), transparent 70%);
+  --accent: #ff2bd6;
+  --accent-soft: #00e5ff;
+  --accent-pale: #b8f7ff;
+  --accent-deep: #c000a0;
+  --accent-dark: #4a0050;
+  --glow: rgba(255, 43, 214, 0.55);
+  --palette: #ffffff, #b8f7ff, #00e5ff, #ff2bd6, #c000a0, #4a0050;
+  --font-display: "Orbitron", sans-serif;
+  --font-ui: "Chakra Petch", sans-serif;
+  --font-mono: "Share Tech Mono", monospace;
+  --title-weight: 800;
+  --title-case: uppercase;
+  --title-tracking: 0.04em;
+}

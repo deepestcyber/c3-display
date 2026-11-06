@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wa-Tor</title>
+<!--
+  Wa-Tor, the predator-prey simulation by A. K. Dewdney (1984), over the whole screen
+  in the colours of the theme. Fish and sharks live on a torus:
+  - A fish moves to a free neighbouring cell; after fishBreed rounds it leaves a young fish behind.
+  - A shark eats a neighbouring fish or else moves to a free cell; it breeds after sharkBreed
+    rounds and starves after starve rounds without fish.
+  The field adapts to the screen like life.html. Unless given, the parameters are picked at
+  random from ranges in which neither species died out in tests (220 x 96 cells, 450 rounds).
+  If one does, the sea is seeded anew.
+
+  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
+    cells=120       cells along the shorter side of the screen
+    cell=9          cell size in CSS pixels instead (overrides cells)
+    gps=12          rounds per second
+    fishBreed=      rounds until a fish breeds (default: random 2-5)
+    sharkBreed=     rounds until a shark breeds (default: random 6-12)
+    starve=         rounds a shark survives without fish (default: random 2-4)
+    fish=           share of cells with fish at the start (default: random 0.15-0.4)
+    sharks=         share of cells with sharks at the start (default: random 0.02-0.08)
+-->
+<link rel="stylesheet" href="theme/theme.css">
+<script src="theme/theme.js"></script>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<div class="overlay">
+  <div class="caption plate rise">
+    <div class="kicker">Predator and prey</div>
+    <h1 class="title">Wa-Tor</h1>
+    <div class="sub" id="sub">A. K. Dewdney, 1984</div>
+  </div>
+  <div class="meta plate br rise" style="animation-delay: 250ms">
+    <div><span class="label">Round</span><span class="value" id="gen">0</span></div>
+    <div><span class="label">Fish</span><span class="value" id="fish">0</span></div>
+    <div><span class="label">Sharks</span><span class="value" id="sharks">0</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+
+  const P = new URLSearchParams(location.search)
+  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v > 0 ? v : d }
+  const int = (k, lo, hi) => Math.round(num(k, lo + Math.floor(Math.random() * (hi - lo + 1))))
+  const real = (k, lo, hi) => Math.min(0.9, num(k, lo + Math.random() * (hi - lo)))
+  const CFG = {
+    cells: num('cells', 120),
+    cell: num('cell', 0),
+    gps: num('gps', 12),
+    fishBreed: int('fishBreed', 2, 5),
+    sharkBreed: int('sharkBreed', 6, 12),
+    starve: int('starve', 2, 4),
+    fish: real('fish', 0.15, 0.4),
+    sharks: real('sharks', 0.02, 0.08),
+  }
+
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+  const fmt = new Intl.NumberFormat('en-US')
+  const el = id => document.getElementById(id)
+  el('sub').textContent = `A. K. Dewdney, 1984 · fish breed after ${CFG.fishBreed}, ` +
+    `sharks after ${CFG.sharkBreed} rounds · sharks starve after ${CFG.starve}`
+
+  const EMPTY = 0, FISH = 1, SHARK = 2
+  let W, H, cs, cols, rows, n, ox, oy, kind, age, hunger, moved, order, gen, fish, sharks, colors
+  const nb = [0, 0, 0, 0], cand = [0, 0, 0, 0]
+
+  // ---------- sea ----------
+  function layout() {
+    const dpr = window.devicePixelRatio || 1
+    W = innerWidth; H = innerHeight
+    canvas.width = Math.round(W * dpr)
+    canvas.height = Math.round(H * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    // the sea fills the screen up to the theme's (small) field margin
+    const margin = Theme.px('--field-margin')
+    const aw = W - 2 * margin, ah = H - 2 * margin
+    cs = CFG.cell || Math.max(3, Math.floor(Math.min(aw, ah) / CFG.cells))
+    cols = Math.floor(aw / cs)
+    rows = Math.floor(ah / cs)
+    ox = Math.floor((W - cols * cs) / 2)
+    oy = Math.floor((H - rows * cs) / 2)
+
+    n = cols * rows
+    kind = new Uint8Array(n); age = new Uint16Array(n); hunger = new Uint16Array(n)
+    moved = new Uint32Array(n); order = new Uint32Array(n)
+    for (let i = 0; i < n; i++) order[i] = i
+    gen = 0
+    seed()
+  }
+
+  function seed() {
+    for (let i = 0; i < n; i++) {
+      const r = Math.random()
+      kind[i] = r < CFG.sharks ? SHARK : r < CFG.sharks + CFG.fish ? FISH : EMPTY
+      age[i] = Math.floor(Math.random() * (kind[i] === SHARK ? CFG.sharkBreed : CFG.fishBreed))
+      hunger[i] = kind[i] === SHARK ? Math.floor(Math.random() * CFG.starve) : 0
+      moved[i] = 0
+    }
+    gen = 0
+    count()
+  }
+
+  function count() {
+    fish = 0; sharks = 0
+    for (let i = 0; i < n; i++) if (kind[i] === FISH) fish++; else if (kind[i] === SHARK) sharks++
+  }
+
+  // A random one of the four neighbouring cells holding `want`, or -1.
+  function pick(i, want) {
+    const x = i % cols, y = (i / cols) | 0
+    nb[0] = y * cols + (x + 1) % cols; nb[1] = y * cols + (x + cols - 1) % cols
+    nb[2] = ((y + 1) % rows) * cols + x; nb[3] = ((y + rows - 1) % rows) * cols + x
+    let k = 0
+    for (let j = 0; j < 4; j++) if (kind[nb[j]] === want) cand[k++] = nb[j]
+    return k ? cand[Math.floor(Math.random() * k)] : -1
+  }
+
+  // Move from i to `to`; when breeding, a young one stays behind in i.
+  function move(i, to, breed) {
+    kind[to] = kind[i]; age[to] = breed ? 0 : age[i]; hunger[to] = hunger[i]; moved[to] = gen
+    if (breed) { age[i] = 0; hunger[i] = 0; moved[i] = gen } else kind[i] = EMPTY
+  }
+
+  function step() {
+    gen++
+    // each round in random order, otherwise patterns drift in scan direction
+    for (let k = n - 1; k > 0; k--) {
+      const j = Math.floor(Math.random() * (k + 1)), t = order[k]; order[k] = order[j]; order[j] = t
+    }
+    for (let k = 0; k < n; k++) {
+      const i = order[k], s = kind[i]
+      if (!s || moved[i] === gen) continue
+      age[i]++
+      let to
+      if (s === FISH) {
+        to = pick(i, EMPTY)
+        if (to >= 0) move(i, to, age[i] >= CFG.fishBreed)
+      } else {
+        hunger[i]++
+        to = pick(i, FISH)
+        if (to >= 0) hunger[i] = 0
+        else if (hunger[i] > CFG.starve) { kind[i] = EMPTY; continue }
+        else to = pick(i, EMPTY)
+        if (to >= 0) move(i, to, age[i] >= CFG.sharkBreed)
+      }
+    }
+    count()
+    if (!fish || !sharks) seed()
+  }
+
+  // ---------- drawing ----------
+  // Water is a faint field in the darkest tone, fish are mid blue, sharks the lightest
+  // tone with a glow.
+  function readColors() {
+    const p = Theme.palette()
+    const at = i => p[Math.min(i, p.length - 1)]
+    colors = { shark: at(0), fish: at(2), water: at(p.length - 1), glow: Theme.color('--glow') }
+  }
+
+  function cellPath(want) {
+    const path = new Path2D(), s = cs - (cs >= 5 ? 1 : 0), r = cs >= 8 ? Math.max(1, cs * 0.18) : 0
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== want) continue
+      const x = ox + (i % cols) * cs, y = oy + ((i / cols) | 0) * cs
+      if (r) path.roundRect(x, y, s, s, r)
+      else path.rect(x, y, s, s)
+    }
+    return path
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H)
+    ctx.fillStyle = Theme.rgba(colors.water, 0.22)
+    ctx.fillRect(ox, oy, cols * cs, rows * cs)
+    ctx.fillStyle = Theme.rgba(colors.fish, 0.9)
+    ctx.fill(cellPath(FISH))
+    ctx.save()
+    ctx.shadowColor = Theme.rgba(colors.glow)
+    ctx.shadowBlur = cs * 0.9
+    ctx.fillStyle = Theme.rgba(colors.shark)
+    ctx.fill(cellPath(SHARK))
+    ctx.restore()
+
+    el('gen').textContent = fmt.format(gen)
+    el('fish').textContent = fmt.format(fish)
+    el('sharks').textContent = fmt.format(sharks)
+  }
+
+  // ---------- run ----------
+  Theme.ready.then(() => {
+    readColors()
+    layout()
+    draw()
+    addEventListener('resize', () => { layout(); draw() })
+
+    // fixed round rate, independent of the frame rate; no catching up after a stall
+    let last = null, acc = 0
+    function frame(t) {
+      if (last !== null) acc += Math.min(t - last, 250)
+      last = t
+      const dt = 1000 / CFG.gps
+      let stepped = false
+      while (acc >= dt) { step(); acc -= dt; stepped = true }
+      if (stepped) draw()
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>

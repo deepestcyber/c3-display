@@ -1,0 +1,28 @@
+/* deep cyber: black, cyber blue, white and silver, as in the logo.
+   Blues taken from the logo's gradients: #004dff, #6171ff, #6a97ff, #bfd4ff, #00309e. */
+:root {
+  --bg: #000;
+  /* the blue shine behind the logo, very faint */
+  --backdrop: radial-gradient(ellipse 85% 70% at 50% 55%, rgba(70, 85, 255, 0.16), rgba(0, 8, 74, 0.10) 50%, transparent 78%);
+  --surface: rgba(2, 4, 16, 0.86);
+
+  --ink: #f4f7ff;
+  --ink-soft: #b9c3da;      /* silver */
+  --ink-faint: #6f7c9c;
+
+  --accent: #4f6cff;
+  --accent-soft: #6a97ff;
+  --accent-pale: #bfd4ff;
+  --accent-deep: #004dff;
+  --accent-dark: #00309e;
+  --line: rgba(97, 113, 255, 0.35);
+  --glow: rgba(97, 113, 255, 0.55);
+  --palette: #ffffff, #bfd4ff, #6a97ff, #4f6cff, #004dff, #00309e;
+
+  --font-display: "Oxanium", system-ui, sans-serif;
+  --font-ui: "Rajdhani", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --title-weight: 700;
+  --title-case: none;
+  --title-tracking: 0.01em;
+}

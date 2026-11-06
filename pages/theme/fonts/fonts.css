@@ -1,0 +1,30 @@
+/* Candidate fonts, latin subset (covers German umlauts and ß), self-hosted.
+   All are licensed under the SIL Open Font License 1.1, see LICENSE.md.
+   Browsers only download the fonts a page actually uses. */
+
+/* ---- display / UI ---- */
+@font-face { font-family: "Orbitron"; src: url("orbitron.woff2") format("woff2"); font-weight: 400 900; font-display: block; }
+@font-face { font-family: "Oxanium"; src: url("oxanium.woff2") format("woff2"); font-weight: 200 800; font-display: block; }
+@font-face { font-family: "Exo 2"; src: url("exo-2.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "Saira"; src: url("saira.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "Space Grotesk"; src: url("space-grotesk.woff2") format("woff2"); font-weight: 300 700; font-display: block; }
+@font-face { font-family: "Teko"; src: url("teko.woff2") format("woff2"); font-weight: 300 700; font-display: block; }
+@font-face { font-family: "Big Shoulders Display"; src: url("big-shoulders-display.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "Rajdhani"; src: url("rajdhani-500.woff2") format("woff2"); font-weight: 400 600; font-display: block; }
+@font-face { font-family: "Rajdhani"; src: url("rajdhani-700.woff2") format("woff2"); font-weight: 700 900; font-display: block; }
+@font-face { font-family: "Chakra Petch"; src: url("chakra-petch-400.woff2") format("woff2"); font-weight: 400 600; font-display: block; }
+@font-face { font-family: "Chakra Petch"; src: url("chakra-petch-700.woff2") format("woff2"); font-weight: 700 900; font-display: block; }
+@font-face { font-family: "Tomorrow"; src: url("tomorrow-400.woff2") format("woff2"); font-weight: 400 600; font-display: block; }
+@font-face { font-family: "Tomorrow"; src: url("tomorrow-700.woff2") format("woff2"); font-weight: 700 900; font-display: block; }
+@font-face { font-family: "Quantico"; src: url("quantico-400.woff2") format("woff2"); font-weight: 400 600; font-display: block; }
+@font-face { font-family: "Quantico"; src: url("quantico-700.woff2") format("woff2"); font-weight: 700 900; font-display: block; }
+@font-face { font-family: "Audiowide"; src: url("audiowide-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Michroma"; src: url("michroma-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Electrolize"; src: url("electrolize-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
+
+/* ---- monospace / data ---- */
+@font-face { font-family: "JetBrains Mono"; src: url("jetbrains-mono.woff2") format("woff2"); font-weight: 100 800; font-display: block; }
+@font-face { font-family: "Space Mono"; src: url("space-mono-400.woff2") format("woff2"); font-weight: 400 600; font-display: block; }
+@font-face { font-family: "Space Mono"; src: url("space-mono-700.woff2") format("woff2"); font-weight: 700 900; font-display: block; }
+@font-face { font-family: "Share Tech Mono"; src: url("share-tech-mono-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "VT323"; src: url("vt323-400.woff2") format("woff2"); font-weight: 400; font-display: block; }

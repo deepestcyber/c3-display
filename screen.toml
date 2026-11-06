@@ -1,10 +1,19 @@
 title    = "Reel"
-rotation = "sequential"
-
-[[page]]
-path     = "reel.html"
-duration = "30s"
+rotation = "random"
 
 [[page]]
 path     = "deep-logo.html?color=white"
-duration = "30s"
+duration = "15s"
+
+[[page]]
+path     = "life.html"
+duration = "15s"
+
+# Wireworld is not a page of its own yet; the reel shows it on request.
+[[page]]
+path     = "reel.html?anim=wireworld"
+duration = "15s"
+
+[[page]]
+path     = "flame.html"
+duration = "15s"

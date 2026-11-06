@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fractal Flame</title>
+<!--
+  A random fractal flame over the whole screen, in the colours of the theme.
+  The chaos game: a point jumps between a few random maps (affine, bent by "variations"
+  as in Apophysis); where it lands often, the image gets bright. Each map has a colour,
+  the point blends them on its way. The image builds up over time, stays for a while,
+  then fades out and the next flame starts.
+
+  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
+    cycle=45        seconds per flame (build-up and hold); 0 keeps the first flame
+    colors=theme    theme: blues and white of the theme; glow: random glowing gradients
+    gamma=2.2       brightness curve of the density image
+-->
+<link rel="stylesheet" href="theme/theme.css">
+<script src="theme/theme.js"></script>
+<style>
+  #c { transition: opacity 1500ms ease; }
+  #c.out { opacity: 0; }
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<div class="overlay">
+  <div class="caption plate rise">
+    <div class="kicker">Fractal</div>
+    <h1 class="title">Fractal Flame</h1>
+    <div class="sub" id="sub"></div>
+  </div>
+  <div class="meta plate br rise" style="animation-delay: 250ms">
+    <div><span class="label">Points</span><span class="value" id="points">0</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+
+  const P = new URLSearchParams(location.search)
+  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v >= 0 ? v : d }
+  const CFG = {
+    cycle: num('cycle', 45),
+    colors: P.get('colors') === 'glow' ? 'glow' : 'theme',
+    gamma: num('gamma', 2.2) || 2.2,
+  }
+
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+  const subEl = document.getElementById('sub'), pointsEl = document.getElementById('points')
+  const rnd = Math.random
+  const between = (a, b) => a + rnd() * (b - a)
+
+  // Glowing gradients from the reel, for colors=glow (dark tones would drown in the density).
+  const GLOW_PALETTES = [
+    [[255, 90, 30], [255, 200, 60], [255, 255, 200], [80, 170, 255], [150, 60, 255]],
+    [[0, 255, 92], [0, 170, 255], [230, 241, 248], [0, 129, 178]],
+    [[255, 60, 140], [255, 170, 60], [255, 240, 160], [120, 80, 255]],
+    [[60, 200, 255], [180, 255, 240], [255, 255, 255], [90, 120, 255]],
+    [[120, 255, 120], [255, 255, 120], [255, 140, 60], [60, 220, 160]],
+  ]
+
+  // Variations as in the flame programs (names as in Apophysis); r2 = x^2 + y^2, th = atan2(x, y).
+  const VARIATIONS = {
+    linear: (x, y) => [x, y],
+    sinusoidal: (x, y) => [Math.sin(x), Math.sin(y)],
+    spherical: (x, y, r2) => [x / r2, y / r2],
+    swirl: (x, y, r2) => { const s = Math.sin(r2), c = Math.cos(r2); return [x * s - y * c, x * c + y * s] },
+    horseshoe: (x, y, r2, r) => [(x - y) * (x + y) / r, 2 * x * y / r],
+    polar: (x, y, r2, r, th) => [th / Math.PI, r - 1],
+    handkerchief: (x, y, r2, r, th) => [r * Math.sin(th + r), r * Math.cos(th - r)],
+    heart: (x, y, r2, r, th) => [r * Math.sin(th * r), -r * Math.cos(th * r)],
+    disc: (x, y, r2, r, th) => [th / Math.PI * Math.sin(Math.PI * r), th / Math.PI * Math.cos(Math.PI * r)],
+    spiral: (x, y, r2, r, th) => [(Math.cos(th) + Math.sin(r)) / r, (Math.sin(th) - Math.cos(r)) / r],
+    hyperbolic: (x, y, r2, r, th) => [Math.sin(th) / r, r * Math.cos(th)],
+    diamond: (x, y, r2, r, th) => [Math.sin(th) * Math.cos(r), Math.cos(th) * Math.sin(r)],
+    julia: (x, y, r2, r, th) => {
+      const a = th / 2 + (rnd() < 0.5 ? 0 : Math.PI), q = Math.sqrt(r)
+      return [q * Math.cos(a), q * Math.sin(a)]
+    },
+  }
+
+  // ---------- one flame: maps, the chaos game, and its bounding box ----------
+  function makeFlame() {
+    const names = Object.keys(VARIATIONS).filter(n => n !== 'linear')
+    let maps, label, total, cum, px, py, pc, box
+
+    function randomMaps() {
+      const n = 2 + Math.floor(rnd() * 3), used = new Set(), list = []
+      for (let i = 0; i < n; i++) {
+        const vars = [], k = 1 + Math.floor(rnd() * 2)
+        for (let j = 0; j < k; j++) {
+          const name = rnd() < 0.25 ? 'linear' : names[Math.floor(rnd() * names.length)]
+          vars.push([VARIATIONS[name], between(0.3, 1)])
+          if (name !== 'linear') used.add(name)
+        }
+        list.push({ m: Array.from({ length: 6 }, () => between(-1, 1)), p: between(0.3, 1),
+                    color: i / (n - 1), speed: 0.5, vars })
+      }
+      // rotational symmetry: extra rotations by 360/sym degrees that keep the colour
+      const sym = rnd() < 0.65 ? 2 + Math.floor(rnd() * 5) : 1
+      for (let i = 1; i < sym; i++) {
+        const a = 2 * Math.PI * i / sym, c = Math.cos(a), s = Math.sin(a)
+        list.push({ m: [c, -s, s, c, 0, 0], p: n / sym, color: 0, speed: 0, vars: null })
+      }
+      label = 'Variations: ' + ([...used].join(', ') || 'linear') + (sym > 1 ? ` · ${sym}-fold symmetric` : '')
+      total = 0; cum = []
+      for (const m of list) { total += m.p; cum.push(total) }
+      px = rnd(); py = rnd(); pc = rnd()
+      return list
+    }
+
+    function step() {
+      const r = rnd() * total
+      let k = 0
+      while (cum[k] < r) k++
+      const t = maps[k], m = t.m
+      let x = m[0] * px + m[1] * py + m[4], y = m[2] * px + m[3] * py + m[5]
+      if (t.vars) {
+        const r2 = x * x + y * y + 1e-12, rr = Math.sqrt(r2), th = Math.atan2(x, y)
+        let nx = 0, ny = 0
+        for (const [f, w] of t.vars) { const v = f(x, y, r2, rr, th); nx += w * v[0]; ny += w * v[1] }
+        x = nx; y = ny
+      }
+      if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1e6 || Math.abs(y) > 1e6) { x = rnd() * 2 - 1; y = rnd() * 2 - 1 }
+      px = x; py = y
+      pc += (t.color - pc) * t.speed
+    }
+
+    // Trial run: find the view (without the outermost 0.3 %) and check the flame is usable:
+    // not collapsed to a point or line, covering enough of a 64 x 64 grid.
+    const quantile = (arr, q) => Float64Array.from(arr).sort()[Math.floor(q * (arr.length - 1))]
+    for (let attempt = 0; attempt < 60; attempt++) {
+      maps = randomMaps()
+      const N = 20000, xs = new Float64Array(N), ys = new Float64Array(N)
+      for (let i = 0; i < 20; i++) step()
+      for (let i = 0; i < N; i++) { step(); xs[i] = px; ys[i] = py }
+      box = { x0: quantile(xs, 0.003), x1: quantile(xs, 0.997), y0: quantile(ys, 0.003), y1: quantile(ys, 0.997) }
+      const bw = box.x1 - box.x0, bh = box.y1 - box.y0
+      if (!(bw > 1e-3 && bh > 1e-3 && bw / bh < 6 && bh / bw < 6)) continue
+      const seen = new Uint8Array(64 * 64)
+      let filled = 0
+      for (let i = 0; i < N; i++) {
+        const cx = Math.floor((xs[i] - box.x0) / bw * 64), cy = Math.floor((ys[i] - box.y0) / bh * 64)
+        if (cx < 0 || cy < 0 || cx >= 64 || cy >= 64 || seen[cx * 64 + cy]) continue
+        seen[cx * 64 + cy] = 1; filled++
+      }
+      if (filled > 900 && filled < 3600) break
+    }
+
+    return { label, box, step, get x() { return px }, get y() { return py }, get c() { return pc } }
+  }
+
+  // ---------- colours: a lookup table along the colour coordinate ----------
+  const LUT_N = 512
+  function makeLut() {
+    let stops
+    if (CFG.colors === 'glow') stops = GLOW_PALETTES[Math.floor(rnd() * GLOW_PALETTES.length)]
+    else {
+      // the theme's palette without its darkest tone, dark to light (dark tones drown in the density)
+      const p = Theme.palette().map(c => c.slice(0, 3))
+      stops = p.slice(0, Math.max(2, p.length - 1)).reverse()
+    }
+    const lut = new Uint8Array(LUT_N * 3)
+    for (let i = 0; i < LUT_N; i++) {
+      const f = i / (LUT_N - 1) * (stops.length - 1), a = stops[Math.floor(f)]
+      const b = stops[Math.min(stops.length - 1, Math.floor(f) + 1)], u = f % 1
+      for (let c = 0; c < 3; c++) lut[i * 3 + c] = Math.round(a[c] + (b[c] - a[c]) * u)
+    }
+    return lut
+  }
+
+  // ---------- rendering: density image in CSS pixels ----------
+  let W, H, cnt, col, img, maxCnt, points, flame, lut, scale, offX, offY, started, lastTone, toneCost
+
+  function layout() {
+    const margin = Theme.px('--field-margin')
+    W = Math.max(1, Math.floor(innerWidth - 2 * margin))
+    H = Math.max(1, Math.floor(innerHeight - 2 * margin))
+    canvas.width = innerWidth
+    canvas.height = innerHeight
+    cnt = new Float32Array(W * H)
+    col = new Float32Array(W * H)
+    img = ctx.createImageData(W, H)
+    offX = Math.floor((innerWidth - W) / 2)
+    offY = Math.floor((innerHeight - H) / 2)
+  }
+
+  function startFlame() {
+    flame = makeFlame()
+    lut = makeLut()
+    subEl.textContent = flame.label
+    cnt.fill(0); col.fill(0)
+    maxCnt = 1; points = 0; started = null; lastTone = 0; toneCost = 0
+    // fit the view into the screen (y up), 4 % margin; points outside it are drawn as far as
+    // the screen goes, so the flame's tails do not end at a hard edge
+    const b = flame.box, bw = b.x1 - b.x0, bh = b.y1 - b.y0
+    scale = Math.min(W / bw, H / bh) * 0.96
+    flame.ox = (W - bw * scale) / 2
+    flame.oy = (H - bh * scale) / 2
+  }
+
+  // Plot up to `limit` points, for at most `budget` ms.
+  function plot(budget, limit) {
+    const t0 = performance.now(), b = flame.box
+    let n = 0
+    while (n < limit) {
+      for (let q = 0; q < 512 && n < limit; q++, n++) {
+        flame.step()
+        const x = Math.floor((flame.x - b.x0) * scale + flame.ox)
+        const y = Math.floor(H - 1 - ((flame.y - b.y0) * scale + flame.oy))
+        if (x < 0 || y < 0 || x >= W || y >= H) continue
+        const k = y * W + x
+        cnt[k]++; col[k] += flame.c
+        if (cnt[k] > maxCnt) maxCnt = cnt[k]
+      }
+      if (performance.now() - t0 > budget) break
+    }
+    points += n
+  }
+
+  // Density to colour: log scale with gamma; colour = mean colour coordinate of the hits.
+  function tone() {
+    const t0 = performance.now(), data = img.data, lm = Math.log(1 + maxCnt), g = 1 / CFG.gamma
+    for (let k = 0; k < cnt.length; k++) {
+      const n = cnt[k], o = k * 4
+      if (!n) { data[o + 3] = 0; continue }
+      const v = Math.pow(Math.log(1 + n) / lm, g), li = Math.min(LUT_N - 1, Math.floor(col[k] / n * (LUT_N - 1))) * 3
+      // brightness as opacity, so faint parts blend into the backdrop instead of darkening it
+      data[o] = lut[li]; data[o + 1] = lut[li + 1]; data[o + 2] = lut[li + 2]; data[o + 3] = 255 * v
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.putImageData(img, offX, offY)
+    toneCost = performance.now() - t0
+  }
+
+  function formatPoints(p) {
+    if (p >= 1e6) return (p / 1e6).toFixed(1) + ' M'
+    if (p >= 1e4) return Math.round(p / 1000) + ' k'
+    return String(p)
+  }
+
+  // Points over time, so one sees the flame emerge: 2 M after 4 s, 14 M after 10 s at 1760 x 770,
+  // scaled to the screen area. At most 10 ms of computing per frame; the colouring of the whole
+  // image runs at most every 100 ms and never takes more than a fifth of the time.
+  const AREA_REF = 1760 * 770
+  let fading = false
+  function frame(t) {
+    if (started === null) started = t
+    const s = (t - started) / 1000
+    if (!fading) {
+      const goal = 1.4e5 * s * s * (W * H) / AREA_REF
+      plot(10, Math.max(0, Math.floor(goal - points)))
+      if (t - lastTone > (s < 2 ? 0 : Math.max(100, 5 * toneCost))) { tone(); lastTone = t }
+      pointsEl.textContent = formatPoints(points)
+      if (CFG.cycle > 0 && s > CFG.cycle) {
+        fading = true
+        canvas.classList.add('out')
+        setTimeout(() => { startFlame(); tone(); canvas.classList.remove('out'); fading = false }, 1600)
+      }
+    }
+    requestAnimationFrame(frame)
+  }
+
+  Theme.ready.then(() => {
+    layout()
+    startFlame()
+    addEventListener('resize', () => { layout(); startFlame() })
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>

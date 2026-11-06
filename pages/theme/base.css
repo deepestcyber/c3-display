@@ -1,0 +1,114 @@
+/* Layout and components. Uses only tokens (custom properties); a theme in themes/
+   sets the tokens. Sizes follow the viewport (vmin), so pages work at any
+   resolution and aspect ratio. */
+
+/* ---------- tokens with neutral defaults, overridden by the theme ---------- */
+:root {
+  /* colours, by role */
+  --bg: #000;
+  --backdrop: none;                 /* background image behind everything */
+  --surface: rgba(0, 0, 0, 0.6);    /* plates behind text over busy content */
+  --ink: #fff;                      /* main text */
+  --ink-soft: #bbb;                 /* secondary text */
+  --ink-faint: #666;                /* labels, hints */
+  --accent: #39f;
+  --accent-soft: #8bf;
+  --accent-pale: #cdf;
+  --accent-deep: #06c;
+  --accent-dark: #036;
+  --line: rgba(255, 255, 255, 0.2);
+  --glow: rgba(51, 153, 255, 0.6);
+  /* colours for content (animations), from light to dark, read by theme.js */
+  --palette: #fff, #cdf, #8bf, #39f, #06c, #036;
+
+  /* fonts */
+  --font-display: system-ui, sans-serif;   /* titles */
+  --font-ui: system-ui, sans-serif;        /* other text */
+  --font-mono: ui-monospace, monospace;    /* numbers, data */
+  --title-weight: 700;
+  --title-case: none;                      /* none | uppercase */
+  --title-tracking: 0;
+
+  /* space and type, relative to the viewport */
+  --margin: clamp(12px, 2.2vmin, 48px);      /* text and other overlay content to the screen edge */
+  --field-margin: clamp(0px, 0.5vmin, 10px); /* full-screen content (canvas fields) to the screen edge */
+  --gap: var(--margin);
+  --fs-kicker: 1.9vmin;
+  --fs-title: 6.2vmin;
+  --fs-sub: 2.5vmin;
+  --fs-meta: 2.3vmin;
+  --fs-body: 3vmin;
+  --radius: 0.6vmin;
+}
+
+/* ---------- page ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; width: 100%; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-body);
+  cursor: none;
+  -webkit-font-smoothing: antialiased;
+}
+body { background-image: var(--backdrop); background-repeat: no-repeat; background-size: cover; }
+
+/* Full-screen drawing area; a canvas inside fills it. */
+.stage { position: fixed; inset: 0; }
+.stage > canvas { display: block; width: 100%; height: 100%; }
+
+/* Text layer over the stage, inside the margins. Four corners: place children
+   with .tl .tr .bl .br (default: bottom left). */
+.overlay {
+  position: fixed; inset: var(--margin); pointer-events: none;
+  display: grid; grid-template: "tl tr" 1fr "bl br" auto / 1fr auto; gap: var(--gap);
+}
+.overlay > * { grid-area: bl; align-self: end; justify-self: start; }
+.overlay > .tl { grid-area: tl; align-self: start; }
+.overlay > .tr { grid-area: tr; align-self: start; justify-self: end; text-align: right; }
+.overlay > .br { grid-area: br; align-self: end; justify-self: end; text-align: right; }
+
+/* ---------- caption: kicker, title, sub ---------- */
+.caption { max-width: min(70vw, 120vmin); }
+.plate {
+  background: var(--surface);
+  -webkit-backdrop-filter: blur(0.8vmin); backdrop-filter: blur(0.8vmin);
+  border-left: 0.35vmin solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.4vmin 2.2vmin 1.6vmin;
+}
+.kicker {
+  font-family: var(--font-ui); font-size: var(--fs-kicker); font-weight: 700;
+  letter-spacing: 0.24em; text-transform: uppercase; color: var(--accent-soft);
+}
+.title {
+  margin: 0.15em 0 0; font-family: var(--font-display); font-size: var(--fs-title);
+  font-weight: var(--title-weight); line-height: 1; letter-spacing: var(--title-tracking);
+  text-transform: var(--title-case); color: var(--ink);
+  text-shadow: 0 0 0.35em var(--glow);
+}
+.sub { margin-top: 0.5em; font-size: var(--fs-sub); font-weight: 500; color: var(--ink-soft); }
+.sub b { color: var(--ink); font-weight: 700; }
+
+/* ---------- meta: small label/value pairs, e.g. counters ---------- */
+.meta { display: flex; gap: 3vmin; font-size: var(--fs-meta); }
+.meta > div { display: flex; flex-direction: column; gap: 0.2em; }
+.meta .label {
+  font-size: 0.6em; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.meta .value {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink);
+  min-width: 6ch;
+}
+
+/* ---------- entrance ---------- */
+.rise { opacity: 0; transform: translateY(1.5vmin); animation: theme-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+@keyframes theme-rise { to { opacity: 1; transform: none; } }
+
+/* ---------- progress bar for ?duration= (added by theme.js) ---------- */
+.theme-progress {
+  position: fixed; left: 0; bottom: 0; height: clamp(3px, 0.5vmin, 10px); width: 0;
+  background: var(--accent); box-shadow: 0 0 1vmin var(--glow);
+  transition-property: width; transition-timing-function: linear;
+}
+.theme-progress.running { width: 100%; }
