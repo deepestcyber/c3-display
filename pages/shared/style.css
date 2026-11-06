@@ -25,3 +25,18 @@ p {
   font-size: 3vw;
   opacity: 0.8;
 }
+
+.progress {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  height: 1cm;
+  width: 0;
+  background: rgba(255, 255, 255, 0.85);
+  transition-property: width;
+  transition-timing-function: linear;
+}
+
+.progress.running {
+  width: 100%;
+}
