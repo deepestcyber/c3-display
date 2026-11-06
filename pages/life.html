@@ -4,28 +4,91 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Game of Life</title>
-<!--
-  Conway's Game of Life over the whole screen, in the colours of the theme.
-  The field adapts to the screen: cell size follows the shorter side, the number
-  of rows and columns follows the aspect ratio. The field is a torus.
-  When the world stagnates, new life is sown over the old one.
+<script type="application/toml" id="deepsplay-page">
+description = """
+Conway's Game of Life over the whole screen, in the colours of the theme.
+The field adapts to the screen: cell size follows the shorter side, the number
+of rows and columns follows the aspect ratio. The field is a torus.
+When the world stagnates, new life is sown over the old one.
+"""
+uses = ["theme"]
 
-  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
-    cells=90        cells along the shorter side of the screen
-    cell=12         cell size in CSS pixels instead (overrides cells)
-    gps=10          generations per second
-    density=0.2     share of living cells when sowing
-    fade=8          generations a dead cell keeps glowing
-    seed=           fixed start (any number), so runs can be compared; default: random
-    render=sprites  sprites: cells drawn from pre-rendered images, newborn cells as one path
-                    with their glow (default); paths: every state as one path (slower at 4K)
-    glowscale=0.25  resolution of the newborn glow per axis: 0.25 computes the blur on a canvas
-                    of a quarter width and height (1/16 of the pixels) and scales it up, which
-                    looks the same; 1 computes it at full resolution (slower)
-    perf            show timings at the top right: step, draw (JS part), frame rate, worst frame
-    bench=300       measure instead of animating: run that many generations as fast as possible,
-                    forcing the canvas to finish after each part, and print the result on the page
--->
+[params.cells]
+type        = "int"
+default     = 90
+min         = 1
+description = "Cells along the shorter side of the screen."
+
+[params.cell]
+type        = "int"
+min         = 1
+description = "Cell size in CSS pixels instead; overrides cells."
+
+[params.gps]
+type        = "number"
+default     = 10
+min         = 0.1
+description = "Generations per second."
+
+[params.density]
+type        = "number"
+default     = 0.2
+min         = 0.01
+max         = 0.9
+description = "Share of living cells when sowing."
+
+[params.fade]
+type        = "int"
+default     = 8
+min         = 1
+description = "Generations a dead cell keeps glowing."
+
+[params.seed]
+type        = "int"
+min         = 1
+description = "Fixed start, so runs can be compared; random without it."
+
+[params.render]
+type        = "enum"
+values      = ["sprites", "paths"]
+default     = "sprites"
+description = "sprites: cells drawn from pre-rendered images, newborn cells as one path with their glow. paths: every state as one path (slower at 4K)."
+
+[params.glowscale]
+type        = "number"
+default     = 0.25
+min         = 0.01
+max         = 1
+description = "Resolution of the newborn glow per axis: 0.25 computes the blur on a quarter width and height and scales it up, which looks the same; 1 is full resolution (slower)."
+
+[params.perf]
+type        = "bool"
+default     = false
+description = "Show timings at the top right: step, draw (JS part), frame rate, worst frame."
+
+[params.bench]
+type        = "int"
+default     = 0
+min         = 0
+description = "Measure instead of animating: run that many generations as fast as possible and print the result on the page."
+
+[[variants]]
+label = "Large cells, slow"
+query = "cells=40&gps=4"
+
+[[variants]]
+label = "Fine and fast"
+query = "cells=200&gps=30"
+
+[[variants]]
+label = "Reproducible start"
+query = "seed=42"
+
+[[variants]]
+label = "Paths renderer with timings"
+query = "render=paths&perf"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
 <link rel="stylesheet" href="theme/theme.css">
 <script src="theme/theme.js"></script>
 </head>
@@ -48,20 +111,9 @@
 (() => {
   'use strict'
 
-  const P = new URLSearchParams(location.search)
-  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v > 0 ? v : d }
-  const CFG = {
-    cells: num('cells', 90),
-    cell: num('cell', 0),
-    gps: num('gps', 10),
-    density: Math.min(0.9, num('density', 0.2)),
-    fade: Math.round(num('fade', 8)),
-    seed: P.has('seed') ? Math.floor(num('seed', 1)) : null,
-    render: P.get('render') === 'paths' ? 'paths' : 'sprites',
-    glowscale: Math.min(1, num('glowscale', 0.25)),
-    perf: P.has('perf'),
-    bench: Math.floor(num('bench', 0)),
-  }
+  // Parameters as defined in the block at the top (deepsplay.js, ADR 14).
+  const P = Deepsplay.params()
+  const CFG = { ...P, seed: P.seed ?? null }
 
   // Random numbers: seeded (mulberry32) for comparable runs, else Math.random.
   const rand = CFG.seed === null ? Math.random : (() => {
