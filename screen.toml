@@ -16,3 +16,7 @@ duration = "15s"
 [[page]]
 path     = "flame.html"
 duration = "15s"
+
+[[page]]
+path     = "wator.html"
+durstion = "20s"
