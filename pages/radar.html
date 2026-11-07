@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rain radar</title>
+<!--
+  Rain radar of the DWD (layer dwd:Niederschlagsradar of its WMS) over a BKG TopPlusOpen map,
+  as a short animation: the last hour of measurements, then the DWD's forecast.
+
+  Caching (upstreams in screen.toml; deepsplay docs/pages.md, ADR 19, 20, 22):
+  - radar_times: the layer's GetCapabilities. Its REFERENCE_TIME is the newest DWD run
+    (every 5 minutes, published about 7 minutes late). All screens read the same answer,
+    so they all build the same frame URLs; no screen clock decides which data exists.
+  - radar: one GetMap per frame, always for the same square around lat/lon at the same pixel
+    size, whatever the screen. A measured frame (time <= run) is asked for by its time only,
+    and is the same image whatever run is current; a forecast frame names its run too
+    (dim_reference_time). So no URL ever changes its answer; a new run costs one new
+    measured frame and the forecast frames, once for all screens.
+  - map: TopPlusOpen tiles, at the zoom that suits the screen; they do not change.
+  Do not set the WMS parameter EXCEPTIONS: the default XML errors are refused by the
+  cache (accepted_types), errors drawn into a PNG would be cached.
+-->
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Rain radar of the DWD over a map: the last hour and the forecast as an animation."
+uses = ["theme"]
+
+[params.lat]
+type        = "number"
+default     = 53.55
+min         = 47
+max         = 56
+description = "Latitude of the centre (the DWD radar covers Germany and its borders)."
+
+[params.lon]
+type        = "number"
+default     = 10.0
+min         = 2
+max         = 18
+description = "Longitude of the centre."
+
+[params.radius]
+type        = "number"
+default     = 90
+min         = 20
+max         = 500
+description = "Half the side of the square radar area in km; the screen shows it filled to its longer side."
+
+[params.place]
+type        = "string"
+default     = "Hamburg"
+description = "Name shown as title."
+
+[params.history]
+type        = "duration"
+default     = "1h"
+max         = "3h"
+description = "Measurements shown before the newest one."
+
+[params.forecast]
+type        = "duration"
+default     = "1h"
+max         = "2h"
+description = "Forecast shown after the newest measurement (the DWD forecasts up to 2 hours)."
+
+[params.loop]
+type        = "duration"
+min         = "2s"
+description = "Length of one pass of the animation; default: the display time, else 12s."
+
+[params.size]
+type        = "int"
+default     = 1024
+min         = 256
+max         = 2048
+description = "Pixel size of the radar images (the DWD radar has about 1 km resolution)."
+
+[params.map]
+type        = "enum"
+values      = ["grey", "color", "dark"]
+default     = "grey"
+description = "Background map: grey or colour TopPlusOpen, or the grey one inverted."
+
+[params.opacity]
+type        = "number"
+default     = 0.85
+min         = 0
+max         = 1
+description = "Opacity of the radar over the map."
+
+[params.marker]
+type        = "bool"
+default     = true
+description = "Mark the centre."
+
+[params.tz]
+type        = "string"
+default     = "Europe/Berlin"
+description = "Time zone of the times shown."
+
+[[variants]]
+label = "Berlin"
+query = "lat=52.52&lon=13.40&place=Berlin"
+
+[[variants]]
+label = "Germany, dark map"
+query = "lat=51.2&lon=10.4&radius=420&place=Germany&map=dark&marker=false"
+
+[[variants]]
+label = "Two hours of forecast"
+query = "forecast=2h&loop=20s"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+<style>
+  .timeline { display: flex; gap: 0.25vmin; align-items: flex-end; height: 2.2vmin; margin-top: 1.2vmin; }
+  .timeline span { flex: 1 1 0; min-width: 2px; height: 55%; border-radius: 1px; background: var(--ink-faint); transition: height 120ms; }
+  .timeline span.now { height: 100%; background: var(--accent); }
+  .timeline span.future { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
+  .timeline span.on { height: 100%; background: var(--ink); box-shadow: none; }
+  .credits { font-size: var(--fs-kicker); color: var(--ink-soft); padding: 0.5em 0.8em; }
+  #sub:empty::before { content: "\00a0"; }
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<div class="overlay">
+  <div class="caption plate rise">
+    <div class="kicker">Rain radar</div>
+    <h1 class="title" id="place"></h1>
+    <div class="sub" id="sub"></div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+  <div class="meta plate br rise" style="animation-delay: 250ms">
+    <div><span class="label" id="kind">Measured</span><span class="value" id="time">--:--</span></div>
+    <div><span class="label">Offset</span><span class="value" id="offset">--</span></div>
+  </div>
+  <div class="credits plate tr">
+    <div>Radar: Deutscher Wetterdienst</div>
+    <div>Map: © GeoBasis-DE / BKG (<span id="year"></span>), dl-de/by-2-0</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+
+  const P = Deepsplay.params()
+  const themeDuration = Deepsplay.params('theme').duration || 0
+  const LAYER = 'dwd:Niederschlagsradar'
+  const STEP = 5 * 60 * 1000             // DWD radar and forecast step
+  const TIMES_POLL = 60 * 1000           // a cache hit for all but one screen a minute
+
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+  const el = id => document.getElementById(id)
+  el('place').textContent = P.place
+  el('year').textContent = new Date().getFullYear()
+  const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: P.tz })
+  const day = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: P.tz })
+
+  // ---------- Web Mercator (EPSG:3857) ----------
+  const R = 6378137, E = Math.PI * R     // half the world's width in metres
+  const mercX = lon => R * lon * Math.PI / 180
+  const mercY = lat => R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))
+
+  // The radar square depends on the parameters only, never on the screen, so every screen
+  // asks for the same URLs. Rounded to 100 m, so float noise cannot change a URL.
+  const cx = mercX(P.lon), cy = mercY(P.lat)
+  const half = P.radius * 1000 / Math.cos(P.lat * Math.PI / 180)
+  const r100 = v => Math.round(v / 100) * 100
+  const box = { x0: r100(cx - half), y0: r100(cy - half), x1: r100(cx + half), y1: r100(cy + half) }
+
+  function frameUrl(time, run) {
+    const q = [
+      ['service', 'WMS'], ['version', '1.3.0'], ['request', 'GetMap'],
+      ['layers', LAYER], ['styles', ''], ['crs', 'EPSG:3857'],
+      ['bbox', `${box.x0},${box.y0},${box.x1},${box.y1}`],
+      ['width', P.size], ['height', P.size],
+      ['format', 'image/png'], ['transparent', 'true'],
+      ['time', new Date(time).toISOString()],
+    ]
+    if (run !== null) q.push(['dim_reference_time', new Date(run).toISOString()])
+    return Deepsplay.api('radar') + '?' + new URLSearchParams(q.map(([k, v]) => [k, String(v)]))
+  }
+
+  const timesUrl = Deepsplay.api('radar_times') + '?' +
+    new URLSearchParams({ service: 'WMS', version: '1.3.0', request: 'GetCapabilities' })
+
+  // Newest run and the covered time range, from the layer's capabilities.
+  async function readTimes() {
+    const res = await fetch(timesUrl)
+    if (!res.ok) throw new Error(`capabilities: ${res.status}`)
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/xml')
+    if (doc.documentElement.localName !== 'WMS_Capabilities') throw new Error('capabilities: not WMS_Capabilities')
+    let run = NaN, first = NaN, last = NaN
+    for (const d of doc.getElementsByTagNameNS('*', 'Dimension')) {
+      const name = (d.getAttribute('name') || '').toLowerCase()
+      if (name === 'reference_time') run = Date.parse(d.getAttribute('default'))
+      if (name === 'time') {
+        const [a, b] = d.textContent.trim().split('/')
+        first = Date.parse(a); last = Date.parse(b)
+      }
+    }
+    if (!Number.isFinite(run)) throw new Error('capabilities: no REFERENCE_TIME')
+    return { run, first, last }
+  }
+
+  // Frames of one run: measured up to the run, then its forecast.
+  function framesFor({ run, first, last }) {
+    const frames = []
+    for (let t = run - Math.floor(P.history / STEP) * STEP; t <= run; t += STEP) {
+      if (!(t < first)) frames.push({ time: t, forecast: false, url: frameUrl(t, null) })
+    }
+    for (let t = run + STEP; t <= run + Math.floor(P.forecast / STEP) * STEP; t += STEP) {
+      if (!(t > last)) frames.push({ time: t, forecast: true, url: frameUrl(t, run) })
+    }
+    return frames
+  }
+
+  // Loads all frames; a frame that fails (e.g. an error document passed on) stays out.
+  async function loadFrames(frames) {
+    await Promise.all(frames.map(async f => {
+      const img = new Image()
+      img.src = f.url
+      try { await img.decode(); f.img = img } catch { f.img = null }
+    }))
+    return frames
+  }
+
+  // ---------- view and map ----------
+  let W, H, dpr, scale, sx0, sy0, mapLayer, mapZoom
+  const tiles = new Map()
+
+  // The square fills the screen to its longer side (the shorter side is cropped).
+  function layout() {
+    dpr = window.devicePixelRatio || 1
+    W = innerWidth; H = innerHeight
+    canvas.width = Math.round(W * dpr)
+    canvas.height = Math.round(H * dpr)
+    scale = Math.max(W, H) / (box.x1 - box.x0)   // CSS px per metre
+    sx0 = W / 2 - (cx - box.x0) * scale          // screen position of the square's left edge
+    sy0 = H / 2 - (box.y1 - cy) * scale          // and of its top edge
+    mapLayer = document.createElement('canvas')
+    mapLayer.width = canvas.width; mapLayer.height = canvas.height
+
+    // Tile zoom: a tile pixel about a device pixel; at most ~300 tiles.
+    const mpp = 1 / (scale * dpr)
+    mapZoom = Math.max(0, Math.min(18, Math.round(Math.log2(2 * E / (256 * mpp)))))
+    while (mapZoom > 0 && tileRange(mapZoom).count > 300) mapZoom--
+    drawMap()
+  }
+
+  // Tiles covering the screen at zoom z.
+  function tileRange(z) {
+    const n = 2 ** z, size = 2 * E / n
+    const left = cx - (W / 2) / scale, right = cx + (W / 2) / scale
+    const top = cy + (H / 2) / scale, bottom = cy - (H / 2) / scale
+    const tx0 = Math.max(0, Math.floor((left + E) / size)), tx1 = Math.min(n - 1, Math.floor((right + E) / size))
+    const ty0 = Math.max(0, Math.floor((E - top) / size)), ty1 = Math.min(n - 1, Math.floor((E - bottom) / size))
+    return { tx0, tx1, ty0, ty1, size, count: (tx1 - tx0 + 1) * (ty1 - ty0 + 1) }
+  }
+
+  function drawMap() {
+    const z = mapZoom, { tx0, tx1, ty0, ty1, size } = tileRange(z)
+    const m = mapLayer.getContext('2d')
+    m.setTransform(dpr, 0, 0, dpr, 0, 0)
+    m.fillStyle = Theme.token('--bg') || '#000'
+    m.fillRect(0, 0, W, H)
+    const style = P.map === 'color' ? 'web' : 'web_grau'
+    const px = size * scale
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const key = `${style}/${z}/${ty}/${tx}`
+      const x = sx0 + (-E + tx * size - box.x0) * scale
+      const y = sy0 + (box.y1 - (E - ty * size)) * scale
+      const place = img => {
+        if (z !== mapZoom) return
+        // overlap by a fraction of a pixel against seams
+        m.filter = P.map === 'dark' ? 'invert(1) grayscale(1) brightness(0.75) contrast(1.1)' : 'none'
+        m.drawImage(img, x, y, px + 0.5, px + 0.5)
+        m.filter = 'none'
+        redraw = true
+      }
+      let t = tiles.get(key)
+      if (!t) {
+        t = new Image()
+        t.src = Deepsplay.api('map', `/${style}/default/WEBMERCATOR/${z}/${ty}/${tx}.png`)
+        tiles.set(key, t)
+      }
+      if (t.complete && t.naturalWidth) place(t)
+      else t.decode().then(() => place(t), () => {})
+    }
+    redraw = true
+  }
+
+  // ---------- drawing ----------
+  let frames = [], next = null, shown = -1, redraw = true
+
+  function drawFrame(f) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(mapLayer, 0, 0)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const side = (box.x1 - box.x0) * scale
+    if (f && f.img) {
+      ctx.globalAlpha = P.opacity
+      ctx.imageSmoothingEnabled = true
+      ctx.drawImage(f.img, sx0, sy0, side, side)
+      ctx.globalAlpha = 1
+    }
+    if (P.marker) {
+      const r = Math.max(4, Math.min(W, H) * 0.008)
+      ctx.lineWidth = Math.max(1.5, r * 0.35)
+      ctx.strokeStyle = Theme.rgba(Theme.color('--bg'), 0.8)
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, r, 0, 2 * Math.PI); ctx.stroke()
+      ctx.lineWidth = Math.max(1, r * 0.2)
+      ctx.strokeStyle = Theme.token('--accent')
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, r, 0, 2 * Math.PI); ctx.stroke()
+    }
+  }
+
+  function buildTimeline() {
+    const tl = el('timeline')
+    tl.replaceChildren(...frames.map(f => {
+      const s = document.createElement('span')
+      if (f.forecast) s.className = 'future'
+      else if (f === lastMeasured()) s.className = 'now'
+      return s
+    }))
+  }
+  const lastMeasured = () => frames.filter(f => !f.forecast).at(-1)
+
+  function showLabels(i) {
+    const f = frames[i]
+    const now = lastMeasured()
+    el('kind').textContent = f.forecast ? 'Forecast' : 'Measured'
+    el('time').textContent = clock.format(f.time)
+    const min = Math.round((f.time - now.time) / 60000)
+    el('offset').textContent = min === 0 ? 'now' : `${min > 0 ? '+' : '−'}${Math.abs(min)} min`
+    el('sub').textContent = `${day.format(now.time)} · newest ${clock.format(now.time)}`
+    const spans = el('timeline').children
+    for (let k = 0; k < spans.length; k++) spans[k].classList.toggle('on', k === i)
+  }
+
+  // One pass: every frame one unit, the newest measurement and the last frame held longer.
+  const HOLD_NOW = 4, HOLD_END = 3
+  function frameAt(t) {
+    const nowIndex = frames.indexOf(lastMeasured())
+    const units = frames.length + HOLD_NOW + HOLD_END
+    let u = (t % loopMs) / loopMs * units
+    for (let i = 0; i < frames.length; i++) {
+      const w = 1 + (i === nowIndex ? HOLD_NOW : 0) + (i === frames.length - 1 ? HOLD_END : 0)
+      if (u < w) return i
+      u -= w
+    }
+    return frames.length - 1
+  }
+  const loopMs = P.loop || themeDuration || 12000
+
+  // ---------- run ----------
+  let currentRun = null, incomplete = false, started = 0
+
+  let polling = false
+  async function poll() {
+    if (polling) return
+    polling = true
+    try {
+      const times = await readTimes()
+      // a new run, or frames of this one that failed last time (the rest are cache hits)
+      if (times.run !== currentRun || incomplete) {
+        const loaded = await loadFrames(framesFor(times))
+        const usable = loaded.filter(f => f.img)
+        if (usable.some(f => !f.forecast)) {
+          next = usable; currentRun = times.run
+          incomplete = usable.length < loaded.length
+        }
+      }
+    } catch (e) {
+      console.warn('radar:', e.message)
+      if (!frames.length) el('sub').textContent = 'No radar data'
+    } finally {
+      polling = false
+    }
+  }
+
+  Theme.ready.then(async () => {
+    layout()
+    addEventListener('resize', () => { layout(); shown = -1 })
+    // the map shows at once; the radar joins when its frames are loaded
+    poll()
+    setInterval(poll, TIMES_POLL)
+
+    function frame(t) {
+      // a new run starts at the beginning of a pass
+      if (next && (!frames.length || frameAt(t - started) < shown || shown === -1)) {
+        frames = next; next = null; started = t; shown = -1
+        buildTimeline()
+      }
+      if (frames.length) {
+        const i = frameAt(t - started)
+        if (i !== shown || redraw) {
+          drawFrame(frames[i])
+          if (i !== shown) showLabels(i)
+          shown = i; redraw = false
+        }
+      } else if (redraw) { drawFrame(null); redraw = false }
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>

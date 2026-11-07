@@ -20,3 +20,35 @@ duration = "15s"
 [[page]]
 path     = "wator.html"
 duration = "20s"
+
+[[page]]
+path     = "radar.html"
+duration = "15s"
+uses     = ["radar", "radar_times", "map"]
+
+# Upstreams for radar.html.
+# Radar frames: every URL names a fixed time (and, for forecasts, the DWD run),
+# so an answer never changes and can be kept long. XML answers are DWD errors.
+[upstream.radar]
+url            = "https://maps.dwd.de/geoserver/dwd/wms"
+cache_ttl      = "2h"
+timeout        = "30s"         # large areas take the DWD several seconds
+accepted_types = ["image/png"]
+cache_size     = "40MB"
+
+# Available times of the radar layer: the newest DWD run decides which frames
+# all screens ask for. Short-lived, refreshed in the background.
+[upstream.radar_times]
+url            = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/wms"
+cache_ttl      = "1m"
+stale_ttl      = "1h"
+refresh        = true
+accepted_types = ["text/xml", "application/vnd.ogc.wms_xml"]
+
+# BKG TopPlusOpen map tiles: they do not change, keep them a day.
+[upstream.map]
+url            = "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0"
+cache_ttl      = "24h"
+stale_ttl      = "720h"
+accepted_types = ["image/png"]
+cache_size     = "60MB"
