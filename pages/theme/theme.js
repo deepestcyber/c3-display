@@ -1,16 +1,11 @@
-// Theme helper. Load it right after theme.css, as a plain (not deferred) script:
+// Theme helper. Load it after deepsplay's page helper and theme.css, as a plain
+// (not deferred) script, and name it in the page's block (uses = ["theme"]):
 //
+//   <script src="/lib/v1/deepsplay.js"></script>
 //   <link rel="stylesheet" href="theme/theme.css">
 //   <script src="theme/theme.js"></script>
 //
-// URL parameters, for every page that uses the theme:
-//   theme=<name>       use themes/<name>.css on top of the default theme
-//   font=<family>      title font, e.g. font=Orbitron (any family from fonts/fonts.css)
-//   font-ui=<family>   font for other text
-//   font-mono=<family> font for numbers and data
-//   margin=<length>       distance of text to the screen edge, e.g. margin=4 (vmin) or margin=40px
-//   field-margin=<length> distance of full-screen content to the screen edge, e.g. field-margin=0
-//   duration=<time>    show a progress bar filling over the display time ("30s", "1500ms")
+// Its URL parameters are defined below, in Deepsplay.helper("theme", ...).
 //
 // For scripts (e.g. canvas animations), window.Theme offers:
 //   Theme.name                the theme from ?theme=, or "default"
@@ -23,12 +18,47 @@
 (() => {
   'use strict'
 
-  const params = new URLSearchParams(location.search)
+  // Parameter definitions (ADR 15): read here and documented by deepsplay.
+  const T = Deepsplay.helper('theme', `
+description = "Shared theme: colours, fonts, margins and a progress bar."
+
+[params.theme]
+type        = "enum"
+values      = ["default", "dc", "neon"]
+default     = "default"
+description = "Colour theme: themes/<name>.css on top of the default theme."
+
+[params.font]
+type        = "string"
+description = "Title font, any family from fonts/fonts.css, e.g. Orbitron."
+
+[params.font-ui]
+type        = "string"
+description = "Font for other text."
+
+[params.font-mono]
+type        = "string"
+description = "Font for numbers and data."
+
+[params.margin]
+type        = "string"
+description = "Distance of text to the screen edge: a number (vmin), or with px, vmin, vw, vh or %."
+
+[params.field-margin]
+type        = "string"
+description = "Distance of full-screen content to the screen edge, in the same format as margin."
+
+[params.duration]
+type        = "duration"
+from        = "duration"
+description = "Display time; shows a progress bar filling over it."
+`)
+
   const base = new URL('.', document.currentScript.src)
 
   // Extra theme: written into the head while it is parsed, so it applies before the first paint.
-  const theme = params.get('theme')
-  if (theme && /^[a-z0-9-]+$/.test(theme)) {
+  const theme = T.theme === 'default' ? null : T.theme
+  if (theme) {
     document.write(`<link rel="stylesheet" href="${new URL(`themes/${theme}.css`, base)}">`)
   }
 
@@ -39,13 +69,13 @@
     ['font-ui', '--font-ui', 'sans-serif'],
     ['font-mono', '--font-mono', 'monospace'],
   ]) {
-    const v = params.get(param)
+    const v = T[param]
     if (v && fontName.test(v)) document.documentElement.style.setProperty(token, `"${v}", ${fallback}`)
   }
 
   // Margins: a number means vmin; px, vmin, vw, vh and % are taken as given.
   for (const [param, tok] of [['margin', '--margin'], ['field-margin', '--field-margin']]) {
-    const m = /^(\d+(?:\.\d+)?)(px|vmin|vw|vh|%)?$/.exec(params.get(param) || '')
+    const m = /^(\d+(?:\.\d+)?)(px|vmin|vw|vh|%)?$/.exec(T[param] || '')
     if (m) document.documentElement.style.setProperty(tok, m[1] + (m[2] || 'vmin'))
   }
 
@@ -88,9 +118,7 @@
   }
 
   // ---------- progress bar ----------
-  const UNITS = { ms: 1, s: 1000, m: 60000, h: 3600000 }
-  const m = /^(\d+)(ms|s|m|h)$/.exec(params.get('duration') || '')
-  const duration = m ? Number(m[1]) * UNITS[m[2]] : 0
+  const duration = T.duration || 0
   if (duration > 0) {
     document.addEventListener('DOMContentLoaded', () => {
       const bar = document.createElement('div')
