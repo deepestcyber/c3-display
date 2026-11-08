@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" data-theme="40c3">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patterns</title>
+<!--
+  Demo of the patterns of the 40C3 style guide (guides/40c3/Assets/Patterns), drawn with
+  assets.js in the colours of the theme variant (random per load, ?variant= to fix one).
+-->
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "All patterns of the 40C3 style guide, in the colours of a random theme variant."
+uses = ["theme"]
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<script src="assets.js"></script>
+<style>
+  .page {
+    position: fixed; inset: var(--margin);
+    display: grid; grid-template-rows: auto 1fr; gap: calc(var(--gap) * 1.5);
+  }
+  .title { margin: 0; color: var(--accent); text-transform: uppercase; }
+  .grid {
+    min-height: 0; display: grid; gap: var(--gap);
+    grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr);
+  }
+  @media (orientation: portrait) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  figure {
+    margin: 0; min-height: 0; display: flex; flex-direction: column; gap: 1vmin;
+    border: 0.2vmin solid var(--line); padding: 1.5vmin;
+    opacity: 0; animation: theme-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  figure .art { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  figure svg { width: 100%; height: 100%; }
+  figcaption { font-family: var(--font-mono); font-size: 1.7vmin; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="title">Patterns</h1>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+(async () => {
+  'use strict'
+  await Theme.ready
+  const A = await C3Assets.load({ kinds: ['pattern'] })
+  const grid = document.getElementById('grid')
+  A.names('pattern').forEach((name, i) => {
+    const fig = document.createElement('figure')
+    fig.style.animationDelay = `${i * 80}ms`
+    const art = document.createElement('div')
+    art.className = 'art'
+    art.append(A.svg(name))
+    const cap = document.createElement('figcaption')
+    cap.textContent = name.split('/').pop()
+    fig.append(art, cap)
+    grid.append(fig)
+  })
+})()
+</script>
+</body>
+</html>

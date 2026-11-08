@@ -8,7 +8,7 @@
 // Its URL parameters are defined below, in Deepsplay.helper("theme", ...).
 //
 // For scripts (e.g. canvas animations), window.Theme offers:
-//   Theme.name                the theme from ?theme=, or "default"
+//   Theme.name                the theme from <html data-theme> or ?theme=, or "default"
 //   Theme.variant             the colour variant picked for this page load, or null
 //   Theme.token("--accent")   raw value of a token
 //   Theme.color("--accent")   a token as [r, g, b, a] (0-255, a 0-1)
@@ -72,21 +72,27 @@ description = "Display time; shows a progress bar filling over it."
   const base = new URL('.', document.currentScript.src)
 
   // Extra theme: written into the head while it is parsed, so it applies before the first paint.
-  const theme = T.theme === 'default' ? null : T.theme
+  // A page made for one theme fixes it with <html data-theme="name">; ?theme= is then ignored.
+  const fixed = document.documentElement.dataset.theme
+  const wanted = fixed || T.theme
+  const theme = wanted === 'default' ? null : wanted
   if (theme) {
     document.write(`<link rel="stylesheet" href="${new URL(`themes/${theme}.css`, base)}">`)
   }
 
   // Colour variants: some themes have several; one is picked per page load and set as
   // <html data-variant="...">, which the theme's CSS selects on. Done here, before the
-  // first paint, so the page never shows another variant first.
+  // first paint, so the page never shows another variant first. A page can fix one with
+  // <html data-variant="name">.
   const VARIANTS = { '40c3': ['key', 'pink', 'green', 'yellow', 'lavender'] }
   let variant = null
   const all = VARIANTS[theme] || []
   if (all.length) {
     const chosen = (T.variants || '').split(',').map(v => v.trim()).filter(v => all.includes(v))
     const pool = chosen.length ? chosen : all
-    variant = all.includes(T.variant) ? T.variant : pool[Math.floor(Math.random() * pool.length)]
+    const fixedVariant = document.documentElement.dataset.variant   // a page made for one variant
+    variant = all.includes(fixedVariant) ? fixedVariant
+      : all.includes(T.variant) ? T.variant : pool[Math.floor(Math.random() * pool.length)]
     document.documentElement.dataset.variant = variant
   }
 

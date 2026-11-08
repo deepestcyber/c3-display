@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" data-theme="40c3" data-variant="key">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Congress clock</title>
+<!--
+  Clock in the 40C3 theme, fixed to the key colours (green on almost black, with glow):
+  on the left the congress and its day, on the right the date and the time, each pair a
+  small line over a large one; three random citizens along the bottom.
+
+  Congress days: day 1 is 27 December, day 4 (the last) 30 December. Days before count
+  down to 0, -1, ...; from 31 December on, the count is for the next congress, which is
+  then also the one named. 2026 is 40C3, so 31 December 2026 is day -360 of 41C3.
+  Days change at midnight in the time zone `tz`.
+-->
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Day of the congress (day 1 is 27 December), time and date, with three random citizens."
+uses = ["theme"]
+
+[params.tz]
+type        = "string"
+default     = "Europe/Berlin"
+description = "Time zone of time, date and the change of day."
+
+[params.seconds]
+type        = "bool"
+default     = true
+description = "Show seconds."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<script src="citizen.js"></script>
+<script src="assets.js"></script>
+<style>
+  .page {
+    position: fixed; inset: var(--margin);
+    display: grid; gap: var(--gap) calc(var(--gap) * 3);
+    grid-template: "left right" auto "citizens citizens" 1fr / auto auto;
+    justify-content: space-between;
+  }
+  @media (orientation: portrait) {
+    .page { grid-template: "left" auto "right" auto "citizens" 1fr / 1fr; }
+  }
+
+  /* left: congress and day; right: date and time, the same two sizes; small ones white, large
+     ones green, all with glow */
+  .left, .right { display: flex; flex-direction: column; gap: 2.5vmin; }
+  .left { grid-area: left; align-items: flex-start; }
+  .right { grid-area: right; align-items: flex-end; }
+  .small, .big {
+    font-family: var(--font-display); line-height: 0.8; color: var(--accent); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .small { font-size: 9vmin; color: var(--ink); text-shadow: 0 0 0.25em var(--glow); }
+  /* the 40C3 logo before the name, as tall as the line, so the row keeps its height */
+  .congress { display: flex; align-items: flex-end; gap: 0.3em; }
+  .congress .logo svg { display: block; height: 0.8em; width: auto; filter: drop-shadow(0 0 0.12em var(--glow)); }
+  .big { font-size: 24vmin; text-shadow: 0 0 0.12em var(--glow), 0 0 0.4em var(--glow); }
+  @media (orientation: portrait) {
+    .big { font-size: 28vw; }
+    .right { align-items: flex-start; }
+  }
+
+  .citizens { grid-area: citizens; height: 100%; min-height: 0; display: flex; justify-content: space-around; align-items: flex-end; }
+  .citizens svg { height: 100%; width: auto; max-width: 30%; filter: drop-shadow(0 0 1.2vmin var(--glow)); }
+</style>
+</head>
+<body>
+<div class="page rise">
+  <div class="left">
+    <div class="small congress"><span class="logo" id="logo"></span><span id="congress">40C3</span></div>
+    <div class="big" id="day">Day</div>
+  </div>
+  <div class="right">
+    <div class="small" id="date">----------</div>
+    <div class="big" id="time">--:--</div>
+  </div>
+  <div class="citizens" id="citizens"></div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const el = id => document.getElementById(id)
+
+  // Calendar date and time in the configured zone.
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: P.tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  })
+  function now() {
+    const o = {}
+    for (const p of parts.formatToParts(new Date())) o[p.type] = p.value
+    return { y: +o.year, m: +o.month, d: +o.day, time: `${o.hour}:${o.minute}${P.seconds ? ':' + o.second : ''}` }
+  }
+
+  // The congress a date belongs to and its day there: 27-30 December are days 1-4; from
+  // 31 December on, the next year's congress counts. 2026 is the 40th.
+  function congress({ y, m, d }) {
+    const year = m === 12 && d === 31 ? y + 1 : y
+    const days = (Date.UTC(y, m - 1, d) - Date.UTC(year, 11, 27)) / 86400000
+    return { name: `${40 + year - 2026}C3`, day: days + 1 }
+  }
+
+  const pad = n => String(n).padStart(2, '0')
+  const signed = n => (n < 0 ? '−' : '') + Math.abs(n)
+
+  let shown = ''
+  function tick() {
+    const t = now()
+    el('time').textContent = t.time
+    const date = `${t.y}-${pad(t.m)}-${pad(t.d)}`
+    if (date !== shown) {
+      shown = date
+      const c = congress(t)
+      el('date').textContent = date
+      el('congress').textContent = c.name
+      el('day').textContent = `Day ${signed(c.day)}`
+    }
+    setTimeout(tick, 1000 - (Date.now() % 1000) + 5)
+  }
+
+  Theme.ready.then(async () => {
+    tick()
+    C3Assets.load({ kinds: ['logo'] })
+      .then(A => el('logo').append(A.svg('Logos/40C3_Logo_0')))
+      .catch(e => console.warn('clock: logo:', e.message))
+    try {
+      const C = await Citizen.load()
+      el('citizens').append(...[0, 1, 2].map(() => C.svg(C.random(), { padding: 0.02 })))
+    } catch (e) {
+      console.warn('clock: citizens:', e.message)
+    }
+  })
+})()
+</script>
+</body>
+</html>
