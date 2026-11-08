@@ -4,22 +4,19 @@ rotation = "random"
 [params]
 theme = "dc"
 progress = false
+duration = "15s"
 
 [[page]]
 path     = "deep-logo.html?color=white"
-duration = "15s"
 
 [[page]]
 path     = "life.html"
-duration = "15s"
 
 [[page]]
 path     = "wireworld.html"
-duration = "15s"
 
 [[page]]
 path     = "flame.html"
-duration = "15s"
 
 [[page]]
 path     = "wator.html"
@@ -27,16 +24,19 @@ duration = "20s"
 
 [[page]]
 path     = "radar.html"
-duration = "15s"
 uses     = ["radar", "radar_times", "map"]
 
 [[page]]
 path     = "40c3/clock.html"
-duration = "15s"
 
 [[page]]
 path     = "40c3/citizens.html"
-duration = "15s"
+
+[[page]]
+path     = "argos.html"
+
+[[page]]
+path     = "argos.html?eyes=24&speed=3"
 
 # Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
 # Runs only where the host configuration allows it (backend = true).

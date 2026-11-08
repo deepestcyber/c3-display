@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argos</title>
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Argos, the eyes reel of the LED wall, as vectors: eyes looking around and blinking."
+details     = """
+The eyes reel of the RGB Tetris LED wall (deepestcyber/rgb-tetris-wall, reels/argos.py),
+redrawn as vectors instead of 16 x 11 pixels per eye.
+
+Same behaviour as the original, which ran at 20 ticks per second:
+- an eye idles for 30-120 ticks (1.5-6 s), then glances in a new direction (9 in 10) or
+  blinks (1 in 10);
+- a glance moves the iris by up to 3 to the side and 2 up or down (in the original's
+  pixels), now with a quick movement instead of a jump;
+- a blink closes the upper lid over 4 ticks, keeps it closed 2-3 ticks and opens it over 4;
+  while closed, the iris changes colour with a chance of 1 in 5 (blue, green, yellow, red,
+  the original's colours);
+- every eye acts on its own.
+
+The wall showed two eyes; eyes= shows more, in a grid that fits the screen.
+"""
+author      = "kratenko"
+uses = ["theme"]
+
+[params.eyes]
+type        = "int"
+default     = 2
+min         = 1
+max         = 100
+description = "Number of eyes (the LED wall had two)."
+
+[params.speed]
+type        = "number"
+default     = 1
+min         = 0.1
+max         = 10
+description = "Factor on the original's speed (20 ticks per second)."
+
+[[variants]]
+label = "Many eyes"
+query = "eyes=24"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+
+  // ---------- the eye, in the original's units: 16 wide, 11 high ----------
+  const EW = 16, EH = 11
+  const LEFT = [0.6, 5.5], RIGHT = [15.4, 5.5]     // corners of the eye
+  const TOP_C = 0.17, BOTTOM_C = 10.83              // control points: apex at y 1.5 and 9.5
+  const IRIS = [8, 5], IRIS_R = 3.9, PUPIL_R = 1.9
+
+  // Colours of the original (cmap, c2map).
+  const SKIN = '#eac086', RIM = '#755f43', RIM_SOFT = '#271f16', WHITE = '#d8d8d8'
+  const IRISES = [
+    { a: '#006dcc', o: '#02243d' },   // blue
+    { a: '#02bb39', o: '#013d09' },   // green
+    { a: '#acbc01', o: '#3b3c00' },   // yellow
+    { a: '#b55103', o: '#3c1601' },   // red
+  ]
+
+  // Curve between the corners whose control points sit at height c.
+  const curve = (path, c, reverse) => {
+    const [a, b] = reverse ? [RIGHT, LEFT] : [LEFT, RIGHT]
+    path.bezierCurveTo(a[0] + (b[0] - a[0]) * 0.2, c, a[0] + (b[0] - a[0]) * 0.8, c, b[0], b[1])
+  }
+  const almond = new Path2D()
+  almond.moveTo(...LEFT); curve(almond, TOP_C); curve(almond, BOTTOM_C, true); almond.closePath()
+
+  // ---------- behaviour: the original's state machine, in ticks ----------
+  const randint = (a, b) => a + Math.floor(Math.random() * (b - a + 1))
+  class Eye {
+    constructor() {
+      this.dir = [0, 0]; this.from = [0, 0]; this.moveAt = -1
+      this.colour = 0
+      this.lid = 0                        // 0 open .. 1 closed
+      this.idle()
+    }
+    idle() {
+      this.action = 'idle'; this.progress = 0
+      this.idleTime = randint(30, 120)
+      this.next = randint(1, 10) === 1 ? 'close' : 'move'
+    }
+    start(action) { this.action = action; this.progress = 0 }
+    update(tick) {
+      this.progress++
+      switch (this.action) {
+        case 'close': if (this.progress > 4) this.start('closed'); break
+        case 'closed':
+          if (this.progress > 2) {
+            if (randint(1, 5) === 1) this.colour = randint(0, IRISES.length - 1)
+            this.start('open')
+          }
+          break
+        case 'open': if (this.progress > 4) this.idle(); break
+        case 'move':
+          this.from = this.pos(tick); this.moveAt = tick
+          this.dir = [randint(-3, 3), randint(-2, 2)]
+          this.idle()
+          break
+        case 'idle': if (this.progress >= this.idleTime) this.start(this.next); break
+      }
+    }
+    // smooth values between ticks, t in ticks (fractional)
+    pos(t) {
+      const k = Math.min(1, Math.max(0, (t - this.moveAt) / 2))   // a glance takes 2 ticks
+      const e = 1 - (1 - k) ** 3
+      return [this.from[0] + (this.dir[0] - this.from[0]) * e, this.from[1] + (this.dir[1] - this.from[1]) * e]
+    }
+    lidAt(t) {
+      const f = t % 1                     // fraction within the current tick
+      const p = this.progress + f
+      if (this.action === 'close') return Math.min(1, (p / 4) ** 2)
+      if (this.action === 'closed') return 1
+      if (this.action === 'open') return Math.max(0, 1 - p / 4) ** 0.5
+      return 0
+    }
+  }
+
+  // ---------- drawing ----------
+  function drawEye(eye, t) {
+    const [dx, dy] = eye.pos(t)
+    const lid = eye.lidAt(t)
+    const colours = IRISES[eye.colour]
+
+    ctx.save()
+    ctx.clip(almond)
+    ctx.fillStyle = WHITE
+    ctx.fillRect(0, 0, EW, EH)
+    // iris and pupil
+    ctx.fillStyle = colours.a
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, IRIS_R, 0, 2 * Math.PI); ctx.fill()
+    ctx.fillStyle = colours.o
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, PUPIL_R, 0, 2 * Math.PI); ctx.fill()
+    // a small highlight, as a wet eye has
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx + 1.3, IRIS[1] + dy - 1.3, 0.55, 0, 2 * Math.PI); ctx.fill()
+    // upper lid: skin from the top edge down to a curve that sinks to the bottom edge
+    if (lid > 0) {
+      const c = TOP_C + (BOTTOM_C - TOP_C) * lid
+      const lidPath = new Path2D()
+      lidPath.moveTo(...LEFT); curve(lidPath, TOP_C); curve(lidPath, c, true); lidPath.closePath()
+      ctx.fillStyle = SKIN
+      ctx.fill(lidPath)
+      const edge = new Path2D()
+      edge.moveTo(...LEFT); curve(edge, c)
+      ctx.strokeStyle = RIM; ctx.lineWidth = 0.55
+      ctx.stroke(edge)
+    }
+    ctx.restore()
+    // rim around the eye, with a soft outer edge (the original's v pixels)
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = RIM_SOFT; ctx.lineWidth = 1.6; ctx.stroke(almond)
+    ctx.strokeStyle = RIM; ctx.lineWidth = 0.8; ctx.stroke(almond)
+  }
+
+  // ---------- layout: a grid of eyes that fits the screen ----------
+  let W, H, dpr, cells = [], eyes = []
+  function layout() {
+    dpr = window.devicePixelRatio || 1
+    W = innerWidth; H = innerHeight
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+    const m = Theme.px('--margin')
+    const area = { x: m, y: m, w: W - 2 * m, h: H - 2 * m }
+    // pick the column count that makes the eyes largest
+    const n = P.eyes, gap = 0.35                    // gap in eye heights
+    let best = null
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols)
+      const s = Math.min(area.w / (cols * EW + (cols - 1) * gap * EH), area.h / (rows * EH + (rows - 1) * gap * EH))
+      if (!best || s > best.s) best = { cols, rows, s }
+    }
+    const { cols, rows, s } = best
+    const gw = cols * EW * s + (cols - 1) * gap * EH * s, gh = rows * EH * s + (rows - 1) * gap * EH * s
+    const x0 = area.x + (area.w - gw) / 2, y0 = area.y + (area.h - gh) / 2
+    cells = []
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / cols), c = i % cols
+      // centre a shorter last row
+      const inRow = r === rows - 1 ? n - r * cols : cols
+      const off = (cols - inRow) * (EW + gap * EH) * s / 2
+      cells.push({ x: x0 + off + c * (EW + gap * EH) * s, y: y0 + r * (EH + gap * EH) * s, s })
+    }
+    while (eyes.length < n) eyes.push(new Eye())
+  }
+
+  Theme.ready.then(() => {
+    layout()
+    addEventListener('resize', layout)
+    const tickMs = 50 / P.speed
+    let start = performance.now(), ticks = 0
+    function frame(now) {
+      const t = (now - start) / tickMs
+      while (ticks < Math.floor(t)) { ticks++; for (const e of eyes) e.update(ticks) }
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      eyes.forEach((eye, i) => {
+        const c = cells[i]
+        ctx.setTransform(c.s * dpr, 0, 0, c.s * dpr, c.x * dpr, c.y * dpr)
+        drawEye(eye, t)
+      })
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>
