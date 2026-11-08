@@ -42,7 +42,7 @@ description = "Longitude of the centre."
 
 [params.radius]
 type        = "number"
-default     = 90
+default     = 20
 min         = 20
 max         = 500
 description = "Half the side of the square radar area in km; the screen shows it filled to its longer side."
@@ -78,9 +78,16 @@ description = "Pixel size of the radar images (the DWD radar has about 1 km reso
 
 [params.map]
 type        = "enum"
-values      = ["grey", "color", "dark"]
-default     = "grey"
-description = "Background map: grey or colour TopPlusOpen, or the grey one inverted."
+values      = ["theme", "grey", "color", "dark"]
+default     = "theme"
+description = "Background map: the grey TopPlusOpen in the theme's colours (background to text), grey or colour as published, or the grey one inverted."
+
+[params.contrast]
+type        = "number"
+default     = 0.6
+min         = 0
+max         = 1
+description = "With map=theme: how far the map's lines and labels go from the background colour towards the text colour."
 
 [params.opacity]
 type        = "number"
@@ -263,6 +270,31 @@ query = "forecast=2h&loop=20s"
     return { tx0, tx1, ty0, ty1, size, count: (tx1 - tx0 + 1) * (ty1 - ty0 + 1) }
   }
 
+  // map=theme: the grey tile recoloured, its darkness mapped from --bg towards --ink, so the
+  // white land becomes the background and lines and labels a muted text colour.
+  const tintCache = new Map()
+  function tinted(key, img) {
+    let c = tintCache.get(key)
+    if (c) return c
+    c = document.createElement('canvas')
+    c.width = img.naturalWidth; c.height = img.naturalHeight
+    const g = c.getContext('2d', { willReadFrequently: true })
+    g.drawImage(img, 0, 0)
+    const data = g.getImageData(0, 0, c.width, c.height), d = data.data
+    const bg = Theme.color('--bg'), ink = Theme.color('--ink'), k = P.contrast
+    for (let i = 0; i < d.length; i += 4) {
+      const dark = 1 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255
+      const t = Math.min(1, Math.pow(dark, 0.8) * k * 1.6) * (d[i + 3] / 255)
+      d[i] = bg[0] + (ink[0] - bg[0]) * t
+      d[i + 1] = bg[1] + (ink[1] - bg[1]) * t
+      d[i + 2] = bg[2] + (ink[2] - bg[2]) * t
+      d[i + 3] = 255
+    }
+    g.putImageData(data, 0, 0)
+    tintCache.set(key, c)
+    return c
+  }
+
   function drawMap() {
     const z = mapZoom, { tx0, tx1, ty0, ty1, size } = tileRange(z)
     const m = mapLayer.getContext('2d')
@@ -279,7 +311,7 @@ query = "forecast=2h&loop=20s"
         if (z !== mapZoom) return
         // overlap by a fraction of a pixel against seams
         m.filter = P.map === 'dark' ? 'invert(1) grayscale(1) brightness(0.75) contrast(1.1)' : 'none'
-        m.drawImage(img, x, y, px + 0.5, px + 0.5)
+        m.drawImage(P.map === 'theme' ? tinted(key, img) : img, x, y, px + 0.5, px + 0.5)
         m.filter = 'none'
         redraw = true
       }
