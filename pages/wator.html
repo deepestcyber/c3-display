@@ -65,6 +65,25 @@ type        = "number"
 min         = 0.01
 max         = 0.9
 description = "Share of cells with sharks at the start (default: random 0.02-0.08)."
+
+[params.render]
+type        = "enum"
+values      = ["sprites", "paths"]
+default     = "sprites"
+description = "sprites: fish and sharks drawn from pre-rendered images; paths: each kind as one path (slower)."
+
+[params.glowscale]
+type        = "number"
+default     = 0.25
+min         = 0.01
+max         = 1
+description = "Resolution of the sharks' glow per axis: 0.25 computes the blur on a quarter width and height and scales it up, which looks the same; 1 is full resolution (slower)."
+
+[params.bench]
+type        = "int"
+default     = 0
+min         = 0
+description = "Measure instead of animating: run that many rounds from the start as fast as possible and print the timings on the page."
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="theme/theme.js"></script>
@@ -102,6 +121,9 @@ description = "Share of cells with sharks at the start (default: random 0.02-0.0
     starve: P.starve ?? int(2, 4),
     fish: P.fish ?? real(0.15, 0.4),
     sharks: P.sharks ?? real(0.02, 0.08),
+    bench: P.bench,
+    render: P.render,
+    glowscale: P.glowscale,
   }
 
   const canvas = document.getElementById('c')
@@ -112,12 +134,12 @@ description = "Share of cells with sharks at the start (default: random 0.02-0.0
     `sharks after ${CFG.sharkBreed} rounds · sharks starve after ${CFG.starve}`
 
   const EMPTY = 0, FISH = 1, SHARK = 2
-  let W, H, cs, cols, rows, n, ox, oy, kind, age, hunger, moved, order, gen, fish, sharks, colors
+  let W, H, dpr, cs, cols, rows, n, ox, oy, kind, age, hunger, moved, order, gen, fish, sharks, colors
   const nb = [0, 0, 0, 0], cand = [0, 0, 0, 0]
 
   // ---------- sea ----------
   function layout() {
-    const dpr = window.devicePixelRatio || 1
+    dpr = window.devicePixelRatio || 1
     W = innerWidth; H = innerHeight
     canvas.width = Math.round(W * dpr)
     canvas.height = Math.round(H * dpr)
@@ -137,6 +159,7 @@ description = "Share of cells with sharks at the start (default: random 0.02-0.0
     moved = new Uint32Array(n); order = new Uint32Array(n)
     for (let i = 0; i < n; i++) order[i] = i
     gen = 0
+    if (CFG.render === 'sprites') buildSprites()
     seed()
   }
 
@@ -220,40 +243,137 @@ description = "Share of cells with sharks at the start (default: random 0.02-0.0
     return path
   }
 
-  function draw() {
+  function drawWater() {
     ctx.clearRect(0, 0, W, H)
     ctx.fillStyle = Theme.rgba(colors.water, 0.22)
     ctx.fillRect(ox, oy, cols * cs, rows * cs)
+  }
+  // Sprites: one pre-rendered image per kind, in device pixels, drawn at whole device pixels.
+  let sprites = null
+  function buildSprites() {
+    const s = cs - (cs >= 5 ? 1 : 0), r = cs >= 8 ? Math.max(1, cs * 0.18) : 0
+    const size = Math.ceil(s * dpr)
+    const make = fill => {
+      const c = document.createElement('canvas')
+      c.width = c.height = size
+      const g = c.getContext('2d')
+      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      g.fillStyle = fill
+      g.beginPath()
+      if (r) g.roundRect(0, 0, s, s, r)
+      else g.rect(0, 0, s, s)
+      g.fill()
+      return c
+    }
+    sprites = { [FISH]: make(Theme.rgba(colors.fish, 0.9)), [SHARK]: make(Theme.rgba(colors.shark)) }
+  }
+  function drawSprites(want) {
+    const img = sprites[want]
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== want) continue
+      ctx.drawImage(img, Math.round((ox + (i % cols) * cs) * dpr), Math.round((oy + ((i / cols) | 0) * cs) * dpr))
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+
+  function drawFish() {
+    if (CFG.render === 'sprites') return drawSprites(FISH)
     ctx.fillStyle = Theme.rgba(colors.fish, 0.9)
     ctx.fill(cellPath(FISH))
-    ctx.save()
-    ctx.shadowColor = Theme.rgba(colors.glow)
-    ctx.shadowBlur = cs * 0.9
+  }
+
+  // Sharks: the lightest tone with a glow. With glowscale < 1 only the shadow is computed on a
+  // smaller canvas and scaled up; the sharks themselves are drawn sharp on top.
+  let glowCanvas = null
+  function drawSharks() {
+    const k = CFG.glowscale
+    if (k >= 1) {
+      ctx.save()
+      ctx.shadowColor = Theme.rgba(colors.glow)
+      ctx.shadowBlur = cs * 0.9
+      ctx.fillStyle = Theme.rgba(colors.shark)
+      ctx.fill(cellPath(SHARK))
+      ctx.restore()
+      return
+    }
+    const gw = Math.ceil(canvas.width * k), gh = Math.ceil(canvas.height * k)
+    if (!glowCanvas) glowCanvas = document.createElement('canvas')
+    if (glowCanvas.width !== gw || glowCanvas.height !== gh) { glowCanvas.width = gw; glowCanvas.height = gh }
+    const g = glowCanvas.getContext('2d')
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    g.clearRect(0, 0, gw, gh)
+    // shadow only: draw the sharks far off the canvas and offset their shadow back into it
+    const off = W + cs * 10
+    g.setTransform(dpr * k, 0, 0, dpr * k, -off * dpr * k, 0)
+    g.shadowColor = Theme.rgba(colors.glow)
+    g.shadowBlur = cs * 0.9 * k
+    g.shadowOffsetX = off * dpr * k
+    g.fillStyle = '#fff'
+    g.fill(cellPath(SHARK))
+    ctx.drawImage(glowCanvas, 0, 0, W, H)
+    if (CFG.render === 'sprites') return drawSprites(SHARK)
     ctx.fillStyle = Theme.rgba(colors.shark)
     ctx.fill(cellPath(SHARK))
-    ctx.restore()
+  }
 
+  function draw() {
+    drawWater()
+    drawFish()
+    drawSharks()
     el('gen').textContent = fmt.format(gen)
     el('fish').textContent = fmt.format(fish)
     el('sharks').textContent = fmt.format(sharks)
+  }
+
+  // ---------- measuring ----------
+  // Reading one pixel forces the canvas to finish all drawing so far, so the time of a part
+  // includes the actual painting, not only recording the commands.
+  const flush = () => ctx.getImageData(0, 0, 1, 1)
+  const stats = list => {
+    const a = [...list].sort((x, y) => x - y), avg = a.reduce((s, v) => s + v, 0) / a.length
+    return { avg: +avg.toFixed(2), p95: +a[Math.floor(0.95 * (a.length - 1))].toFixed(2), max: +a[a.length - 1].toFixed(2) }
+  }
+  function bench() {
+    const out = { screen: `${W}x${H}@${dpr}`, cell: cs, grid: `${cols}x${rows}`, rounds: CFG.bench }
+    const t = { step: [], water: [], fish: [], sharks: [], total: [] }
+    const start = { fish: 0, sharks: 0 }
+    flush()
+    for (let k = 0; k < CFG.bench; k++) {
+      const t0 = performance.now(); step(); const t1 = performance.now()
+      drawWater(); flush(); const t2 = performance.now()
+      drawFish(); flush(); const t3 = performance.now()
+      drawSharks(); flush(); const t4 = performance.now()
+      t.step.push(t1 - t0); t.water.push(t2 - t1); t.fish.push(t3 - t2); t.sharks.push(t4 - t3); t.total.push(t4 - t0)
+      if (!k) { start.fish = fish; start.sharks = sharks }
+    }
+    for (const k in t) out[k] = stats(t[k])
+    out.population = `start ${start.fish} fish, ${start.sharks} sharks; end ${fish} fish, ${sharks} sharks`
+    const pre = document.createElement('pre')
+    pre.id = 'bench'
+    pre.style.cssText = 'position:fixed;left:2vmin;top:2vmin;margin:0;padding:1vmin;background:#000c;color:#fff;font:14px monospace;z-index:9'
+    pre.textContent = JSON.stringify(out, null, 1)
+    document.body.appendChild(pre)
+    console.log('BENCH ' + JSON.stringify(out))
   }
 
   // ---------- run ----------
   Theme.ready.then(() => {
     readColors()
     layout()
+    // the bench waits a moment, so a freshly opened window has its final size
+    if (CFG.bench) { setTimeout(() => { layout(); bench() }, 500); return }
     draw()
     addEventListener('resize', () => { layout(); draw() })
 
-    // fixed round rate, independent of the frame rate; no catching up after a stall
+    // fixed round rate, independent of the frame rate; at most one round per frame, so a slow
+    // round slows the sea down for a moment instead of making it jump ahead
     let last = null, acc = 0
     function frame(t) {
-      if (last !== null) acc += Math.min(t - last, 250)
-      last = t
       const dt = 1000 / CFG.gps
-      let stepped = false
-      while (acc >= dt) { step(); acc -= dt; stepped = true }
-      if (stepped) draw()
+      if (last !== null) acc = Math.min(acc + t - last, dt)
+      last = t
+      if (acc >= dt) { step(); acc -= dt; draw() }
       requestAnimationFrame(frame)
     }
     requestAnimationFrame(frame)
