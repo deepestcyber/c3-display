@@ -141,11 +141,12 @@ description = "For testing: start the clock at this time (HH:MM or HH:MM:SS) and
         <circle cx="124" cy="78" r="3" fill="#ff2020"/>
         <!-- angry brows: lids slanting down to the beak -->
         <g clip-path="url(#body-clip)">
-          <path d="M40 40 L104 70 L104 40 Z" fill="#58cc02"/>
-          <path d="M160 40 L96 70 L96 40 Z" fill="#58cc02"/>
+          <!-- lid edges run exactly along the brows, so no white shows above them -->
+          <path d="M30 30 L30 39.7 L100 71 L100 30 Z" fill="#58cc02"/>
+          <path d="M170 30 L170 39.7 L100 71 L100 30 Z" fill="#58cc02"/>
         </g>
-        <path d="M44 46 L102 72" stroke="#2f6e00" stroke-width="5" stroke-linecap="round"/>
-        <path d="M156 46 L98 72" stroke="#2f6e00" stroke-width="5" stroke-linecap="round"/>
+        <path d="M44 46 L100 71 L156 46" stroke="#2f6e00" stroke-width="5" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
       </g>
       <g class="sad">
         <!-- looking down and aside, heavy lids drooping to the outside -->
