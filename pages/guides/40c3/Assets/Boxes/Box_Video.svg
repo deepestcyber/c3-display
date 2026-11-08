@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_2" data-name="Ebene 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232.65 146.25">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #6ab143;
+      }
+    </style>
+  </defs>
+  <g id="C_Stapel">
+    <g>
+      <path class="cls-1" d="M224.65,8v130.25H8V8h216.65ZM232.65,0H0v146.25h232.65V0h0Z"/>
+      <polygon class="cls-1" points="155.34 73.1 89.55 35.12 89.55 111.08 155.34 73.1"/>
+    </g>
+  </g>
+</svg>

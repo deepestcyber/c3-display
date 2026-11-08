@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_2" data-name="Ebene 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 91.58 115.51">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #75b44b;
+      }
+
+      .cls-2 {
+        fill: #001300;
+      }
+    </style>
+  </defs>
+  <g id="Content">
+    <g>
+      <rect class="cls-1" x="0" y="0" width="91.58" height="115.51"/>
+      <rect class="cls-2" x="41.21" y="5.85" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="41.21" y="21.29" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="41.21" y="36.73" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="41.21" y="52.17" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="41.21" y="67.61" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="28.86" y="36.73" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="53.55" y="36.73" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="65.89" y="52.17" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="16.52" y="52.17" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="28.86" y="82.34" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="53.55" y="82.34" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="65.89" y="98.49" width="9.17" height="11.16"/>
+      <rect class="cls-2" x="16.52" y="98.49" width="9.17" height="11.16"/>
+    </g>
+  </g>
+</svg>

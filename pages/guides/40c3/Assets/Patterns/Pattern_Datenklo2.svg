@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_2" data-name="Ebene 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168.27 170.85">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #75b44b;
+      }
+    </style>
+  </defs>
+  <g id="Content">
+    <g>
+      <path class="cls-1" d="M151.88,35.27h-40.56V5.57h40.56v29.69ZM114.32,32.27h34.56V8.57h-34.56v23.69Z"/>
+      <path class="cls-1" d="M151.88,141.34h-40.56v-29.69h40.56v29.69ZM114.32,138.34h34.56v-23.69h-34.56v23.69Z"/>
+      <polygon class="cls-1" points="168.27 146.73 115.67 146.73 115.67 139.84 118.67 139.84 118.67 143.73 165.27 143.73 165.27 3 118.69 3 118.67 7.08 115.67 7.07 115.71 0 168.27 0 168.27 146.73"/>
+      <polygon class="cls-1" points="159.26 127.99 150.38 127.99 150.38 124.99 156.26 124.99 156.26 21.92 150.38 21.92 150.38 18.92 159.26 18.92 159.26 127.99"/>
+      <path class="cls-1" d="M44.25,170.85H0v-3h41.25v-4.45h-14.69v-11.01h17.69v8.01h100.57v-15.18h3v18.18H44.25v7.45ZM29.55,160.41h11.69v-5.01h-11.69v5.01Z"/>
+      <rect class="cls-1" x="128.7" y="124.06" width="5.8" height="3"/>
+      <rect class="cls-1" x="128.7" y="130.86" width="5.8" height="3"/>
+      <rect class="cls-1" x="119.07" y="120.72" width="5.8" height="3"/>
+      <rect class="cls-1" x="138.33" y="127.1" width="5.8" height="3"/>
+      <rect class="cls-1" x="138.33" y="120.72" width="5.8" height="3"/>
+      <rect class="cls-1" x="119.07" y="127.1" width="5.8" height="3"/>
+      <rect class="cls-1" x="120.7" y="18.92" width="5.8" height="3"/>
+      <path class="cls-1" d="M133.86,104.24h-22.35v-61.98h22.35v61.98ZM114.51,101.24h16.35v-55.98h-16.35v55.98Z"/>
+    </g>
+  </g>
+</svg>

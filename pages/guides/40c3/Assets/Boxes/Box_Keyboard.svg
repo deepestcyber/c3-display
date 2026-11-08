@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_2" data-name="Ebene 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 69.28 163.83">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #ebedf0;
+      }
+    </style>
+  </defs>
+  <g id="Content">
+    <g>
+      <path class="cls-1" d="M0,0v163.83s69.28,0,69.28,0V0S0,0,0,0ZM61.24,156.3H15.77s0-73.26,0-73.26H6.92s0-50.27,0-50.27h2.24s0,48.03,0,48.03h6.61s0-73.26,0-73.26h45.46s0,148.77,0,148.77Z"/>
+      <rect class="cls-1" x="22.74" y="130.03" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="118.79" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="107.56" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="96.32" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="85.08" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="73.84" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="62.61" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="51.37" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="40.13" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="22.74" y="28.89" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="127.5" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="116.27" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="105.03" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="93.79" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="82.55" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="71.31" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="60.08" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="48.84" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="37.6" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="34.97" y="26.36" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="47.2" y="48.84" width="7.07" height="62.37"/>
+      <path class="cls-1" d="M29.81,21.3c4.08.02,8.15.03,12.23.05v-8.72c-6.44,0-12.87,0-19.31,0v11.2c2.36,0,4.72,0,7.07,0v-2.54Z"/>
+      <rect class="cls-1" x="22.74" y="141.27" width="7.07" height="9.93"/>
+      <rect class="cls-1" x="34.97" y="138.51" width="7.07" height="12.7"/>
+      <rect class="cls-1" x="47.2" y="145.03" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="47.2" y="135.49" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="47.13" y="125.89" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="47.2" y="116.27" width="7.07" height="6.18"/>
+      <rect class="cls-1" x="47.2" y="12.6" width="7.07" height="31.18"/>
+    </g>
+  </g>
+</svg>
