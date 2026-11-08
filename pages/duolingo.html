@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson</title>
+<script type="application/toml" id="deepsplay-page">
+description = "A green owl that is not happy: do your language lesson before midnight."
+details     = """
+Meant for about 23:45. Counts down to midnight in the time zone tz; the owl leans in, the
+screen pulses red and grows more nervous as midnight comes. After midnight it is too late:
+the terror leaves, and the owl is only disappointed.
+The owl is drawn here, not taken from anywhere.
+"""
+author      = "kratenko"
+
+[params.tz]
+type        = "string"
+default     = "Europe/Berlin"
+description = "Time zone of the midnight counted down to."
+
+[params.streak]
+type        = "int"
+default     = 0
+min         = 0
+description = "Streak in days to put at stake; 0 leaves it out."
+
+[params.at]
+type        = "string"
+default     = ""
+description = "For testing: start the clock at this time (HH:MM or HH:MM:SS) and let it run from there; empty: the real time."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<style>
+  :root { --green: #58cc02; --red: #ff2a2a; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #050000; color: #fff; cursor: none; }
+  body { font-family: system-ui, sans-serif; }
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(160, 0, 0, 0.55) 75%, rgba(60, 0, 0, 0.95) 100%);
+    animation: pulse var(--beat, 1.2s) ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.55 } 15% { opacity: 1 } 30% { opacity: 0.7 } 45% { opacity: 0.95 } }
+  .stage { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto; place-items: center; padding: 3vmin; box-sizing: border-box; }
+  .top {
+    font-weight: 900; font-size: 6vmin; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--red); text-shadow: 0 0 2vmin rgba(255, 0, 0, 0.8);
+  }
+  .owl { height: 100%; max-height: 62vh; aspect-ratio: 1; min-height: 0; position: relative; }
+  .owl svg { width: 100%; height: 100%; overflow: visible; transform-origin: 50% 85%; animation: lean 6s ease-in-out infinite; }
+  @keyframes lean { 0%, 100% { transform: scale(1) rotate(0) } 50% { transform: scale(1.08) rotate(-2deg) } }
+  .shake .owl svg { animation: lean 6s ease-in-out infinite, shake 0.12s linear infinite; }
+  @keyframes shake { 0% { translate: 0 0 } 25% { translate: 0.6vmin -0.4vmin } 50% { translate: -0.5vmin 0.5vmin } 75% { translate: 0.4vmin 0.3vmin } }
+  .bottom { text-align: center; }
+  #line { font-weight: 800; font-size: 5vmin; min-height: 1.2em; transition: opacity 400ms; }
+  #count {
+    font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight: 700;
+    font-size: 12vmin; line-height: 1; color: var(--red); text-shadow: 0 0 3vmin rgba(255, 0, 0, 0.9);
+  }
+  .glitch { animation: glitch 180ms steps(2) 1; }
+  @keyframes glitch { 0% { filter: hue-rotate(90deg) invert(1); transform: translateX(-1.5vmin) } 100% { filter: none; transform: none } }
+  .eye-glow { animation: eyes var(--beat, 1.2s) ease-in-out infinite; }
+  @keyframes eyes { 0%, 100% { opacity: 0.6 } 15% { opacity: 1 } }
+
+  /* ---------- after midnight: no more terror, only disappointment ---------- */
+  .gloom {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 4s;
+    background: radial-gradient(ellipse at 50% 40%, rgba(40, 50, 70, 0.35) 0%, rgba(8, 10, 16, 0.9) 70%, #050608 100%);
+  }
+  .sad, .tear { display: none; }
+  .late .sad { display: inline; }
+  .late .angry, .late .eye-glow { display: none; }
+  .late .vignette { animation: none; opacity: 0; transition: opacity 3s; }
+  .late .gloom { opacity: 1; }
+  .late .owl svg {
+    animation: sigh 7s ease-in-out infinite;
+    filter: saturate(0.45) brightness(0.8); transition: filter 4s;
+  }
+  @keyframes sigh {
+    0%, 100% { transform: translateY(3%) scale(0.94, 0.92) rotate(-4deg) }
+    45%      { transform: translateY(1%) scale(0.95, 0.96) rotate(-3deg) }
+    60%      { transform: translateY(4%) scale(0.95, 0.9) rotate(-5deg) }
+  }
+  .late .tear { display: inline; animation: tear 5s ease-in infinite; }
+  @keyframes tear {
+    0%, 30% { transform: translateY(0); opacity: 0 }
+    40%     { transform: translateY(0); opacity: 1 }
+    90%     { transform: translateY(70px); opacity: 1 }
+    100%    { transform: translateY(80px); opacity: 0 }
+  }
+  .late .top { color: #8a93a3; text-shadow: none; font-weight: 700; }
+  .late #count { color: #5d6573; text-shadow: none; }
+  .late #line { color: #c3c9d4; font-weight: 500; font-style: italic; transition: opacity 1.5s; }
+</style>
+</head>
+<body>
+<div class="vignette"></div>
+<div class="gloom"></div>
+<div class="stage" id="stage">
+  <div class="top" id="top">Streak in danger</div>
+  <div class="owl">
+    <svg viewBox="0 0 200 200" aria-hidden="true">
+      <defs>
+        <linearGradient id="under" gradientUnits="userSpaceOnUse" x1="0" y1="70" x2="0" y2="184">
+          <stop offset="0" stop-color="#000" stop-opacity="0"/>
+          <stop offset="1" stop-color="#000" stop-opacity="0.55"/>
+        </linearGradient>
+        <radialGradient id="redeye" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="#fff"/>
+          <stop offset="0.25" stop-color="#ff3030"/>
+          <stop offset="1" stop-color="#ff0000" stop-opacity="0"/>
+        </radialGradient>
+        <path id="body" d="M40 70 Q38 30 60 22 L66 8 L82 24 Q100 18 118 24 L134 8 L140 22 Q162 30 160 70
+                 L162 130 Q160 182 100 184 Q40 182 38 130 Z"/>
+        <clipPath id="body-clip"><use href="#body"/></clipPath>
+        <clipPath id="eyes-clip"><circle cx="72" cy="72" r="26.5"/><circle cx="128" cy="72" r="26.5"/></clipPath>
+        <filter id="blur" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="3"/></filter>
+      </defs>
+      <!-- feet -->
+      <path d="M72 178 l-8 10 M80 180 l0 12 M88 178 l8 10 M112 178 l-8 10 M120 180 l0 12 M128 178 l8 10"
+            stroke="#ff9600" stroke-width="6" stroke-linecap="round"/>
+      <!-- body -->
+      <use href="#body" fill="#58cc02"/>
+      <!-- wings -->
+      <path d="M40 92 Q18 120 30 160 Q44 150 50 128 Z" fill="#46a302"/>
+      <path d="M160 92 Q182 120 170 160 Q156 150 150 128 Z" fill="#46a302"/>
+      <!-- belly -->
+      <path d="M62 120 Q100 104 138 120 Q140 170 100 174 Q60 170 62 120 Z" fill="#89e219"/>
+      <rect x="38" y="70" width="124" height="114" fill="url(#under)" opacity="0.6" clip-path="url(#body-clip)"/>
+      <!-- eyes -->
+      <circle cx="72" cy="72" r="26" fill="#f4f4f4"/>
+      <circle cx="128" cy="72" r="26" fill="#f4f4f4"/>
+      <g class="eye-glow" filter="url(#blur)">
+        <circle cx="76" cy="78" r="16" fill="url(#redeye)"/>
+        <circle cx="124" cy="78" r="16" fill="url(#redeye)"/>
+      </g>
+      <g class="angry">
+        <circle cx="76" cy="78" r="8" fill="#1a0000"/>
+        <circle cx="124" cy="78" r="8" fill="#1a0000"/>
+        <circle cx="76" cy="78" r="3" fill="#ff2020"/>
+        <circle cx="124" cy="78" r="3" fill="#ff2020"/>
+        <!-- angry brows: lids slanting down to the beak -->
+        <g clip-path="url(#body-clip)">
+          <path d="M40 40 L104 70 L104 40 Z" fill="#58cc02"/>
+          <path d="M160 40 L96 70 L96 40 Z" fill="#58cc02"/>
+        </g>
+        <path d="M44 46 L102 72" stroke="#2f6e00" stroke-width="5" stroke-linecap="round"/>
+        <path d="M156 46 L98 72" stroke="#2f6e00" stroke-width="5" stroke-linecap="round"/>
+      </g>
+      <g class="sad">
+        <!-- looking down and aside, heavy lids drooping to the outside -->
+        <circle cx="68" cy="86" r="9" fill="#1a1a1a"/>
+        <circle cx="120" cy="86" r="9" fill="#1a1a1a"/>
+        <circle cx="65" cy="83" r="2.5" fill="#fff"/>
+        <circle cx="117" cy="83" r="2.5" fill="#fff"/>
+        <g clip-path="url(#eyes-clip)">
+          <path d="M40 40 L100 40 L100 62 L44 80 Z" fill="#58cc02"/>
+          <path d="M160 40 L100 40 L100 62 L156 80 Z" fill="#58cc02"/>
+        </g>
+        <path d="M50 76 L96 62" stroke="#2f6e00" stroke-width="4" stroke-linecap="round"/>
+        <path d="M150 76 L104 62" stroke="#2f6e00" stroke-width="4" stroke-linecap="round"/>
+        <!-- brows raised in the middle -->
+        <path d="M52 50 Q72 46 94 34" stroke="#2f6e00" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M148 50 Q128 46 106 34" stroke="#2f6e00" stroke-width="4" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- beak -->
+      <path d="M88 96 Q100 88 112 96 L100 116 Z" fill="#ff9600"/>
+      <path d="M90 100 L110 100" stroke="#c46a00" stroke-width="2"/>
+      <!-- a single tear -->
+      <path class="tear" d="M58 94 Q54 101 58 104 Q62 101 58 94 Z" fill="#8fd3ff"/>
+    </svg>
+  </div>
+  <div class="bottom">
+    <div id="line">&nbsp;</div>
+    <div id="count">--:--</div>
+  </div>
+</div>
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const el = id => document.getElementById(id)
+
+  const LINES = [
+    'You forgot something.',
+    'Do your lesson.',
+    'I know where you live.',
+    'Your streak is crying.',
+    'Midnight is coming.',
+    'Just five minutes. Now.',
+    'The owl is watching.',
+  ]
+  if (P.streak) LINES.push(`${P.streak} days. Gone at midnight.`)
+  const SAD = [
+    'I am not angry. I am disappointed.',
+    'I thought we had something.',
+    'I will still be here tomorrow.',
+    'Maybe tomorrow.',
+  ]
+  if (P.streak) SAD.push(`${P.streak} days. Gone.`)
+
+  // Seconds until the next midnight in tz (from the wall clock there, so DST does not matter).
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: P.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  })
+  // ?at=23:58 starts a test clock at that time, running from page load.
+  const at = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(P.at || '')
+  const atStart = at ? +at[1] * 3600 + +at[2] * 60 + +(at[3] || 0) : null
+  const loaded = Date.now()
+  function untilMidnight() {
+    if (atStart !== null) {
+      const now = (atStart + Math.floor((Date.now() - loaded) / 1000)) % 86400
+      return 86400 - now
+    }
+    const p = Object.fromEntries(parts.formatToParts(new Date()).map(x => [x.type, x.value]))
+    return 86400 - (+p.hour * 3600 + +p.minute * 60 + +p.second)
+  }
+  const two = n => String(n).padStart(2, '0')
+
+  let li = Math.floor(Math.random() * LINES.length), si = 0
+  function nextLine() {
+    const line = el('line'), late = isLate()
+    line.style.opacity = 0
+    setTimeout(() => {
+      if (late) { si = (si + 1) % SAD.length; line.textContent = SAD[si] }
+      else { li = (li + 1) % LINES.length; line.textContent = LINES[li] }
+      line.style.opacity = 1
+    }, late ? 1500 : 400)
+  }
+  // from midnight to 18:00 it is too late; the countdown runs in the evening
+  const isLate = () => untilMidnight() > 6 * 3600
+
+  function tick() {
+    const s = untilMidnight()
+    const stage = el('stage')
+    const late = isLate(), wasLate = document.body.classList.contains('late')
+    document.body.classList.toggle('late', late)
+    if (late) {
+      if (!wasLate) {
+        el('top').textContent = 'Too late'
+        el('count').textContent = '00:00'
+        el('line').textContent = SAD[si]
+        stage.classList.remove('shake', 'glitch')
+      }
+      return
+    }
+    if (wasLate) el('top').textContent = 'Streak in danger'
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60
+    el('count').textContent = h ? `${h}:${two(m)}:${two(s % 60)}` : `${two(m)}:${two(s % 60)}`
+    // nervous as midnight comes: faster beat, shaking in the last ten minutes
+    const k = Math.max(0, Math.min(1, s / 1800))
+    document.documentElement.style.setProperty('--beat', `${(0.45 + 0.9 * k).toFixed(2)}s`)
+    stage.classList.toggle('shake', s < 600)
+  }
+
+  function glitch() {
+    const stage = el('stage')
+    stage.classList.remove('glitch')
+    if (!isLate()) { void stage.offsetWidth; stage.classList.add('glitch') }
+    setTimeout(glitch, 1500 + Math.random() * 4000)
+  }
+
+  el('line').textContent = LINES[li]
+  tick()
+  setInterval(tick, 250)
+  // panic lines change fast; the disappointed ones take their time
+  let lineAt = 0
+  setInterval(() => {
+    const now = Date.now()
+    if (now - lineAt >= (isLate() ? 8000 : 3500)) { lineAt = now; nextLine() }
+  }, 250)
+  setTimeout(glitch, 2000)
+})()
+</script>
+</body>
+</html>
