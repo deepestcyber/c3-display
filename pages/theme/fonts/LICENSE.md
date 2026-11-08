@@ -1,6 +1,6 @@
 # Fonts
 
-All fonts in this directory are licensed under the
+All fonts in this directory except Hack (see below) are licensed under the
 [SIL Open Font License 1.1](https://openfontlicense.org/). They may be used,
 embedded and redistributed freely, also commercially; they may not be sold on
 their own. The files are the latin subsets as packaged by
@@ -26,6 +26,14 @@ their own. The files are the latin subsets as packaged by
 | Space Mono | space-mono-400/700.woff2 | https://fonts.google.com/specimen/Space+Mono |
 | Share Tech Mono | share-tech-mono-400.woff2 | https://fonts.google.com/specimen/Share+Tech+Mono |
 | VT323 | vt323-400.woff2 | https://fonts.google.com/specimen/VT323 |
+
+Two families come from the 40C3 style guide (`../guides/40c3/fonts`) for the `40c3`
+theme, under their own licences:
+
+| Family | Files | Licence |
+| --- | --- | --- |
+| Jersey 10 | jersey-10-latin/latin-ext.woff2 | SIL OFL 1.1, Jersey-10-License.txt |
+| Hack | hack-regular/bold/italic/bolditalic.woff2 | MIT and Bitstream Vera License, Hack-License.txt |
 
 These are candidates for trying out (see `font-lab.html`); unused ones can be
 deleted once the choice is made.

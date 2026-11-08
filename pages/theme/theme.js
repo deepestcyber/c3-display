@@ -9,6 +9,7 @@
 //
 // For scripts (e.g. canvas animations), window.Theme offers:
 //   Theme.name                the theme from ?theme=, or "default"
+//   Theme.variant             the colour variant picked for this page load, or null
 //   Theme.token("--accent")   raw value of a token
 //   Theme.color("--accent")   a token as [r, g, b, a] (0-255, a 0-1)
 //   Theme.palette()           the --palette colours as [[r, g, b, a], ...], light to dark
@@ -24,9 +25,18 @@ description = "Shared theme: colours, fonts, margins and a progress bar."
 
 [params.theme]
 type        = "enum"
-values      = ["default", "dc", "neon"]
+values      = ["default", "dc", "neon", "40c3"]
 default     = "default"
 description = "Colour theme: themes/<name>.css on top of the default theme."
+
+[params.variant]
+type        = "string"
+default     = "random"
+description = "Colour variant of themes that have several (40c3: key, pink, green, yellow, lavender); random picks one per page load."
+
+[params.variants]
+type        = "string"
+description = "Variants to pick from at random, comma-separated, e.g. key,green; default: all of the theme."
 
 [params.font]
 type        = "string"
@@ -48,6 +58,11 @@ description = "Distance of text to the screen edge: a number (vmin), or with px,
 type        = "string"
 description = "Distance of full-screen content to the screen edge, in the same format as margin."
 
+[params.progress]
+type        = "bool"
+default     = true
+description = "Show the progress bar over the display time."
+
 [params.duration]
 type        = "duration"
 from        = "duration"
@@ -60,6 +75,19 @@ description = "Display time; shows a progress bar filling over it."
   const theme = T.theme === 'default' ? null : T.theme
   if (theme) {
     document.write(`<link rel="stylesheet" href="${new URL(`themes/${theme}.css`, base)}">`)
+  }
+
+  // Colour variants: some themes have several; one is picked per page load and set as
+  // <html data-variant="...">, which the theme's CSS selects on. Done here, before the
+  // first paint, so the page never shows another variant first.
+  const VARIANTS = { '40c3': ['key', 'pink', 'green', 'yellow', 'lavender'] }
+  let variant = null
+  const all = VARIANTS[theme] || []
+  if (all.length) {
+    const chosen = (T.variants || '').split(',').map(v => v.trim()).filter(v => all.includes(v))
+    const pool = chosen.length ? chosen : all
+    variant = all.includes(T.variant) ? T.variant : pool[Math.floor(Math.random() * pool.length)]
+    document.documentElement.dataset.variant = variant
   }
 
   // Font overrides go on <html> as inline style, which wins over the theme's :root.
@@ -98,6 +126,7 @@ description = "Display time; shows a progress bar filling over it."
 
   window.Theme = {
     name: theme || 'default',
+    variant,
     token,
     color: name => parseColor(token(name)),
     palette: () => token('--palette').split(/,(?![^(]*\))/).map(parseColor),
@@ -119,7 +148,7 @@ description = "Display time; shows a progress bar filling over it."
 
   // ---------- progress bar ----------
   const duration = T.duration || 0
-  if (duration > 0) {
+  if (T.progress !== false && duration > 0) {
     document.addEventListener('DOMContentLoaded', () => {
       const bar = document.createElement('div')
       bar.className = 'theme-progress'

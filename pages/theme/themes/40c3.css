@@ -1,0 +1,120 @@
+/* 40C3 (style guide in ../../guides/40c3/Styleguide.pdf): colours 0-7, A and B, fonts Jersey 10
+   (headings) and Hack (subheads and text), square boxes with thin borders.
+
+   One colour variant per page load: theme.js sets <html data-variant="..."> before the page is
+   painted, at random from all variants or from ?variants=, or fixed with ?variant=. Variants are
+   the combinations of the style guide's pages "Color variants" whose colours the guide lists;
+   two (pale blue with teal, brown with orange) use colours outside the list and are left out.
+
+   The palette goes from the colour that stands out most against the background to the one
+   closest to it, as content (animations) expects. */
+
+:root {
+  --font-display: "Jersey 10", ui-monospace, monospace;
+  --font-ui: "Hack", ui-monospace, monospace;
+  --font-mono: "Hack", ui-monospace, monospace;
+  --title-weight: 400;
+  --title-case: none;
+  --title-tracking: 0.02em;
+  --fs-title: 8vmin;
+  --radius: 0;
+  --backdrop: none;
+}
+
+/* the guide's boxes: square, a thin border all round */
+.plate {
+  border: 0.25vmin solid var(--accent);
+  border-radius: 0;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* subheads: Hack bold, underlined */
+.kicker {
+  font-family: var(--font-ui); font-weight: 700; letter-spacing: 0.04em; text-transform: none;
+  text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.2em;
+}
+.meta .label { letter-spacing: 0.06em; }
+
+/* key: the key colours [0, A, B]: green and light on almost black */
+:root, :root[data-variant="key"] {
+  --bg: #001300;
+  --surface: rgba(0, 19, 0, 0.88);
+  --ink: #ebedf0;
+  --ink-soft: #b7bdbb;
+  --ink-faint: #818b84;
+  --accent: #75b44b;
+  --accent-soft: #75b44b;
+  --accent-pale: #b0d09e;
+  --accent-deep: #406c29;
+  --accent-dark: #234316;
+  --line: rgba(117, 180, 75, 0.4);
+  --glow: rgba(117, 180, 75, 0.5);
+  --palette: #ebedf0, #75b44b, #588c38, #406c29, #2c501c, #1a3610;
+}
+
+/* pink: pink with light: "On Zero Days We Wear Pink" */
+:root[data-variant="pink"] {
+  --bg: #ee5da2;
+  --surface: rgba(238, 93, 162, 0.88);
+  --ink: #ebedf0;
+  --ink-soft: #eccddf;
+  --ink-faint: #ecaccd;
+  --accent: #ebedf0;
+  --accent-soft: #ebedf0;
+  --accent-pale: #ecc9dc;
+  --accent-deep: #ecaccd;
+  --accent-dark: #ed88b9;
+  --line: rgba(235, 237, 240, 0.4);
+  --glow: transparent;
+  --palette: #ebedf0, #ecd0e0, #ecb6d2, #ed9ec5, #ed88b9, #ed77b0;
+}
+
+/* green: green with almost black: "Followed the rabbit for 4 days" */
+:root[data-variant="green"] {
+  --bg: #75b44b;
+  --surface: rgba(117, 180, 75, 0.88);
+  --ink: #001300;
+  --ink-soft: #1a3610;
+  --ink-faint: #355b22;
+  --accent: #001300;
+  --accent-soft: #001300;
+  --accent-pale: #1d3b13;
+  --accent-deep: #355b22;
+  --accent-dark: #528434;
+  --line: rgba(0, 19, 0, 0.4);
+  --glow: transparent;
+  --palette: #001300, #17330f, #2c501c, #406c29, #528434, #60973d;
+}
+
+/* yellow: yellow with almost black: "Looking Dangerous" */
+:root[data-variant="yellow"] {
+  --bg: #ffbc40;
+  --surface: rgba(255, 188, 64, 0.88);
+  --ink: #001300;
+  --ink-soft: #38380e;
+  --ink-faint: #735f1d;
+  --accent: #001300;
+  --accent-soft: #001300;
+  --accent-pale: #403d10;
+  --accent-deep: #735f1d;
+  --accent-dark: #b2892d;
+  --line: rgba(0, 19, 0, 0.4);
+  --glow: transparent;
+  --palette: #001300, #33350d, #615318, #8c7023, #b2892d, #d19e34;
+}
+
+/* lavender: lavender with light: "Soft looking cuteness" */
+:root[data-variant="lavender"] {
+  --bg: #9fa4e8;
+  --surface: rgba(159, 164, 232, 0.88);
+  --ink: #ebedf0;
+  --ink-soft: #daddee;
+  --ink-faint: #c9ccec;
+  --accent: #ebedf0;
+  --accent-soft: #ebedf0;
+  --accent-pale: #d8dbee;
+  --accent-deep: #c9ccec;
+  --accent-dark: #b6baea;
+  --line: rgba(235, 237, 240, 0.4);
+  --glow: transparent;
+  --palette: #ebedf0, #dcdeee, #ced1ed, #c1c5ec, #b6baea, #adb1e9;
+}

@@ -1,6 +1,10 @@
 title    = "Reel"
 rotation = "random"
 
+[params]
+theme = "dc"
+progress = false
+
 [[page]]
 path     = "deep-logo.html?color=white"
 duration = "15s"
