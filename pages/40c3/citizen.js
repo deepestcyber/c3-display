@@ -37,6 +37,8 @@
   // `hornsX`: where the pair sits instead (share of the head width from its centre), and
   // `hornsTilt`: how much the horns follow the slope of the outline there (0 to 1);
   // `hair`: placement of hair styles that differs on this head (fields as in HAIR);
+  // `chin`: the circle of a round face (centre x, lower end y, radius r; shares of the head
+  // width/height/width), for the beard;
   // `deco`: placement of decos that differs on this head (fields as in DECO; for a hat on
   // top, `depth` puts its lower edge at that share of the head height);
   // `tiltedAt`: where tilted hats sit instead, for the right side (mirrored for the left):
@@ -52,7 +54,8 @@
              deco: { Deco7: { depth: 0.19 }, Deco5: { depth: 0.14 }, Deco1: { depth: 0.12 } } }, // small hats: pointed hat's brim on the edges, hat and cap lower, tip just hidden
     Head5: { face: [0.10, 0.04, 0.90, 0.64], skull: [0.5, 0.80], color: 'white' },
     Head6: { face: [0.08, 0.06, 0.92, 0.94], skull: [0.5, 0.84], color: 'white' },
-    Head7: { face: [0.10, 0.06, 0.90, 0.68], skull: [0.5, 0.84], color: 'black', horn: 0.07, outline: 0.035 }, // below the outline
+    Head7: { face: [0.10, 0.06, 0.90, 0.68], skull: [0.5, 0.84], color: 'black', horn: 0.07, outline: 0.035,
+             chin: { x: 0.5, y: 0.722, r: 0.5 } }, // horn below the outline; the face circle (with outline), measured
   }
 
   // Features: centre in the face box (fractions), size as part width per face width at the
@@ -116,6 +119,7 @@
     Deco6: { slot: 'eyes', at: 'face', x: 0.5, y: 0.36, width: 0.98 },         // glasses
     Deco7: { slot: 'top', at: 'top', width: 0.95, sink: 0.22 },                // pointed hat
     Deco8: { slot: 'top', at: 'top', height: 0.55, sink: 0.08, horn: true },   // horn
+    Deco8m: { slot: 'top', at: 'top', height: 0.55, sink: 0.08, horn: true, part: 'Deco8', flip: true }, // the horn mirrored
     Deco9: { slot: 'eyes', at: 'eye', lens: [0.537, 0.59, 0.61], cover: 1.45, min: 0.26, max: 0.36 }, // eye patch
     // derived: the eye patch on the left eye (as seen), mirrored; the monocle on the left eye
     Deco9l: { slot: 'eyes', at: 'eye', part: 'Deco9', side: 'left', flip: true,
@@ -127,6 +131,12 @@
     // on the head's outline at `x` (share of the skull width from its centre), `height`
     // per head height, the base corners sunk into the head by `sink` of the head height
     Deco8x2: { slot: 'top', at: 'horns', part: 'Deco8', x: 0.30, height: 0.36, sink: 0.025 },
+    // derived: the spiky hair upside down as a beard, over the head, its arch locked to the
+    // lower end of the face. The arch of Hair2 is nearly a circle: radius `archR` of the
+    // hair's width, apex at `archApex` of its height (from its top, as worn); measured.
+    DecoBeard: { slot: 'beard', at: 'beard', part: 'Hair2', heads: ['Head0', 'Head1', 'Head2', 'Head3', 'Head6', 'Head7'],
+                 archR: 0.30, archApex: 0.505, behind: { width: 1.5, apex: 0.85 },
+                 band: 0.035, bandAngle: [-13.5, -16] }, // band: thickness per head width, its right and left end at these angles (below the horizontal if negative)
     // derived: big hats for the triangle head, pulled down over its tip; `width` per head
     // width, `depth`: where the hat's lower edge sits (share of the head height), `x`: shift
     // by a share of its width. (No big cap: it does not suit the triangle.)
@@ -423,6 +433,36 @@
       // decos (a single name is accepted too)
       for (const deco of [].concat(spec.deco || [])) {
         const D = { ...DECO[deco], ...(H.deco || {})[deco] }, p = parts[D.part || deco]
+        if (D.at === 'beard' && !H.chin) {
+          // heads without a neck: behind the head, the arch hidden by it; `behind`: width per
+          // head width and where the arch's apex lies (share of the head height)
+          const B = { ...D.behind, ...(H.beard || {}) }
+          const w = head.w * B.width, h = w * p.h / p.w
+          put(D.part, head.w / 2 - w / 2, head.h * B.apex - (1 - D.archApex) * h, w, 1.8, 'v')
+          continue
+        }
+        if (D.at === 'beard') {
+          // over the head, the arch locked to the face line: sized so the arch's circle is
+          // the face's circle, its apex on the chin
+          const C = H.chin || { x: 0.5, y: (fy0 + fh) / head.h, r: fw / 2 / head.w }
+          const T = D
+          const w = C.r * head.w / T.archR, h = w * p.h / p.w
+          put(D.part, C.x * head.w - w / 2, C.y * head.h - (1 - T.archApex) * h, w, 3, 'v')
+          // where the arch ends, the outer spikes leave the face at an angle: a band along
+          // the face line under the beard closes the gap there
+          if (T.band) {
+            const R0 = C.r * head.w * 0.97, R1 = R0 + T.band * head.w
+            const cx = C.x * head.w, cy = C.y * head.h - C.r * head.w
+            // from right to left, below; each end at its own angle (the hair is not symmetric)
+            const [ar, al] = Array.isArray(T.bandAngle) ? T.bandAngle : [T.bandAngle, T.bandAngle]
+            const a0 = -ar * Math.PI / 180, a1 = Math.PI + al * Math.PI / 180
+            const pt = (R, a) => `${(cx + R * Math.cos(a)).toFixed(2)} ${(cy + R * Math.sin(a)).toFixed(2)}`
+            const large = a1 - a0 > Math.PI ? 1 : 0
+            const d = `M${pt(R1, a0)} A${R1} ${R1} 0 ${large} 1 ${pt(R1, a1)} L${pt(R0, a1)} A${R0} ${R0} 0 ${large} 0 ${pt(R0, a0)} Z`
+            placed.push({ markup: `<path d="${d}" style="fill:var(--cc-green)"/>`, x: cx - R1, y: cy - R1, w: 2 * R1, h: 2 * R1, layer: 2.9 })
+          }
+          continue
+        }
         if (D.at === 'ears' && head.sides && p.halves) {
           const s = D.height * fw * (H.scale || 1) / p.h     // part units to head units
           const at = eye.right ? eye.right.cy : fy0 + fh * FEATURE_Y.eyes
@@ -550,8 +590,10 @@
       const c = { ...ORIGINAL, ...colors }
       const r = n => Math.round(n * 100) / 100
       const body = placed.map(p => {
+        if (p.markup) return p.markup
         const part = parts[p.name]
-        const inner = p.flip ? `<g transform="matrix(-1 0 0 1 ${part.w} 0)">${part.inner}</g>` : part.inner
+        const inner = p.flip === 'v' ? `<g transform="matrix(1 0 0 -1 0 ${part.h})">${part.inner}</g>`
+          : p.flip ? `<g transform="matrix(-1 0 0 1 ${part.w} 0)">${part.inner}</g>` : part.inner
         const vb = p.crop ? `${r(p.crop[0] * part.w)} 0 ${r((p.crop[1] - p.crop[0]) * part.w)} ${part.h}` : `0 0 ${part.w} ${part.h}`
         const el = `<svg x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}" ` +
           `viewBox="${vb}" preserveAspectRatio="none" overflow="${p.crop ? 'hidden' : 'visible'}">${inner}</svg>`
