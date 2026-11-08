@@ -4,29 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wa-Tor</title>
-<!--
-  Wa-Tor, the predator-prey simulation by A. K. Dewdney (1984), over the whole screen
-  in the colours of the theme. Fish and sharks live on a torus:
-  - A fish moves to a free neighbouring cell; after fishBreed rounds it leaves a young fish behind.
-  - A shark eats a neighbouring fish or else moves to a free cell; it breeds after sharkBreed
-    rounds and starves after starve rounds without fish.
-  The field adapts to the screen like life.html. Unless given, the parameters are picked at
-  random from ranges in which neither species died out in tests (220 x 96 cells, 450 rounds).
-  If one does, the sea is seeded anew.
-
-  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
-    cells=120       cells along the shorter side of the screen
-    cell=9          cell size in CSS pixels instead (overrides cells)
-    gps=12          rounds per second
-    fishBreed=      rounds until a fish breeds (default: random 2-5)
-    sharkBreed=     rounds until a shark breeds (default: random 6-12)
-    starve=         rounds a shark survives without fish (default: random 2-4)
-    fish=           share of cells with fish at the start (default: random 0.15-0.4)
-    sharks=         share of cells with sharks at the start (default: random 0.02-0.08)
--->
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
+description = "Wa-Tor, the predator-prey simulation by A. K. Dewdney (1984), over the whole screen."
+details     = """
+Fish and sharks live on a torus:
+- A fish moves to a free neighbouring cell; after fishBreed rounds it leaves a young fish
+  behind.
+- A shark eats a neighbouring fish or else moves to a free cell; it breeds after
+  sharkBreed rounds and starves after starve rounds without fish.
+
+The field adapts to the screen like life.html. Unless given, the parameters are picked at
+random from ranges in which neither species died out in tests (220 x 96 cells, 450 rounds).
+If one does, the sea is seeded anew.
+"""
+author      = "kratenko"
+credits     = "Wa-Tor by A. K. Dewdney (1984)"
 uses = ["theme"]
+
+[params.cells]
+type        = "int"
+default     = 120
+min         = 4
+description = "Cells along the shorter side of the screen."
+
+[params.cell]
+type        = "int"
+min         = 1
+description = "Cell size in CSS pixels instead (overrides cells)."
+
+[params.gps]
+type        = "number"
+default     = 12
+min         = 0.1
+description = "Rounds per second."
+
+[params.fishBreed]
+type        = "int"
+min         = 1
+description = "Rounds until a fish breeds (default: random 2-5)."
+
+[params.sharkBreed]
+type        = "int"
+min         = 1
+description = "Rounds until a shark breeds (default: random 6-12)."
+
+[params.starve]
+type        = "int"
+min         = 1
+description = "Rounds a shark survives without fish (default: random 2-4)."
+
+[params.fish]
+type        = "number"
+min         = 0.01
+max         = 0.9
+description = "Share of cells with fish at the start (default: random 0.15-0.4)."
+
+[params.sharks]
+type        = "number"
+min         = 0.01
+max         = 0.9
+description = "Share of cells with sharks at the start (default: random 0.02-0.08)."
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="theme/theme.js"></script>
@@ -51,19 +89,19 @@ uses = ["theme"]
 (() => {
   'use strict'
 
-  const P = new URLSearchParams(location.search)
-  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v > 0 ? v : d }
-  const int = (k, lo, hi) => Math.round(num(k, lo + Math.floor(Math.random() * (hi - lo + 1))))
-  const real = (k, lo, hi) => Math.min(0.9, num(k, lo + Math.random() * (hi - lo)))
+  // parameters left out are picked at random from ranges that keep both species alive
+  const P = Deepsplay.params()
+  const int = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1))
+  const real = (lo, hi) => lo + Math.random() * (hi - lo)
   const CFG = {
-    cells: num('cells', 120),
-    cell: num('cell', 0),
-    gps: num('gps', 12),
-    fishBreed: int('fishBreed', 2, 5),
-    sharkBreed: int('sharkBreed', 6, 12),
-    starve: int('starve', 2, 4),
-    fish: real('fish', 0.15, 0.4),
-    sharks: real('sharks', 0.02, 0.08),
+    cells: P.cells,
+    cell: P.cell || 0,
+    gps: P.gps,
+    fishBreed: P.fishBreed ?? int(2, 5),
+    sharkBreed: P.sharkBreed ?? int(6, 12),
+    starve: P.starve ?? int(2, 4),
+    fish: P.fish ?? real(0.15, 0.4),
+    sharks: P.sharks ?? real(0.02, 0.08),
   }
 
   const canvas = document.getElementById('c')

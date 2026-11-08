@@ -4,22 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wireworld</title>
-<!--
-  Wireworld (Brian Silverman, 1987) over the whole screen, in the colours of the theme.
-  Cells are empty, conductor, electron head or electron tail. A head becomes a tail, a tail
-  becomes conductor, and conductor becomes a head when one or two of its eight neighbours
-  are heads. With that, wires carry signals and diodes and gates can be built.
-  The circuits are fixed patterns from the Golly pattern collection (Patterns/WireWorld),
-  scaled to fill the screen without running under the text.
-
-  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
-    world=          index of the circuit (0-4); default: random
-    cycle=60        seconds per circuit, then the next one (random); 0 keeps the first
-    speed=1         factor on the circuit's own generations per second
--->
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
+description = "Wireworld (Brian Silverman, 1987): electrons running through circuits."
+details     = """
+Cells are empty, conductor, electron head or electron tail. A head becomes a tail, a tail
+becomes conductor, and conductor becomes a head when one or two of its eight neighbours are
+heads. With that, wires carry signals and diodes and gates can be built.
+
+The circuits are fixed patterns from the Golly pattern collection (Patterns/WireWorld),
+scaled to fill the screen without running under the text.
+"""
+author      = "kratenko"
+credits     = "Wireworld by Brian Silverman (1987); circuits from the Golly pattern collection"
 uses = ["theme"]
+
+[params.world]
+type        = "int"
+min         = 0
+max         = 4
+description = "Index of the circuit (0-4); default: random."
+
+[params.cycle]
+type        = "number"
+default     = 60
+min         = 0
+description = "Seconds per circuit, then the next one (random); 0 keeps the first."
+
+[params.speed]
+type        = "number"
+default     = 1
+min         = 0.1
+description = "Factor on the circuit's own generations per second."
+
+[[variants]]
+label = "Turing machine"
+query = "world=4&cycle=0"
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="theme/theme.js"></script>
@@ -279,12 +299,11 @@ uses = ["theme"]
       "3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C3.C" },
   ]
 
-  const P = new URLSearchParams(location.search)
-  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v >= 0 ? v : d }
+  const P = Deepsplay.params()
   const CFG = {
-    world: P.has('world') ? Math.floor(num('world', 0)) % WORLDS.length : null,
-    cycle: num('cycle', 60),
-    speed: num('speed', 1) || 1,
+    world: P.world === undefined ? null : P.world % WORLDS.length,
+    cycle: P.cycle,
+    speed: P.speed,
   }
 
   const canvas = document.getElementById('c')

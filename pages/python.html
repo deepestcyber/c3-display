@@ -4,15 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Python backend</title>
-<!--
-  Showcase for a deepsplay backend: asks the Python process in backend/app.py once a
-  second for facts about itself (GET /c/<config>/backend/info) and shows them. The
-  values change on every answer, so it is plain that Python runs on the host.
-  Needs [backend] in the manifest and backend = true for the configuration on the host.
--->
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
 description = "Shows live data from the repository's Python backend."
+details     = """
+Showcase for a deepsplay backend: asks the Python process in backend/app.py once a second
+for facts about itself (GET /c/<config>/backend/info) and shows them. The values change on
+every answer, so it is plain that Python runs on the host.
+
+Needs [backend] in the manifest and backend = true for the configuration on the host.
+"""
+author      = "kratenko"
 uses = ["theme"]
 
 [params.interval]

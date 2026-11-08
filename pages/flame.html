@@ -4,21 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fractal Flame</title>
-<!--
-  A random fractal flame over the whole screen, in the colours of the theme.
-  The chaos game: a point jumps between a few random maps (affine, bent by "variations"
-  as in Apophysis); where it lands often, the image gets bright. Each map has a colour,
-  the point blends them on its way. The image builds up over time, stays for a while,
-  then fades out and the next flame starts.
-
-  URL parameters (plus those of theme/theme.js: theme, font, duration, ...):
-    cycle=45        seconds per flame (build-up and hold); 0 keeps the first flame
-    colors=theme    theme: blues and white of the theme; glow: random glowing gradients
-    gamma=2.2       brightness curve of the density image
--->
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
+description = "A random fractal flame over the whole screen, building up over time."
+details     = """
+The chaos game: a point jumps between a few random maps (affine, bent by "variations" as in
+Apophysis); where it lands often, the image gets bright. Each map has a colour, the point
+blends them on its way. The image builds up over time, stays for a while, then fades out
+and the next flame starts.
+"""
+author      = "kratenko"
 uses = ["theme"]
+
+[params.cycle]
+type        = "number"
+default     = 45
+min         = 0
+description = "Seconds per flame (build-up and hold); 0 keeps the first flame."
+
+[params.colors]
+type        = "enum"
+values      = ["theme", "glow"]
+default     = "theme"
+description = "theme: the theme's palette; glow: random glowing gradients."
+
+[params.gamma]
+type        = "number"
+default     = 2.2
+min         = 0.1
+description = "Brightness curve of the density image."
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="theme/theme.js"></script>
@@ -45,12 +59,8 @@ uses = ["theme"]
 (() => {
   'use strict'
 
-  const P = new URLSearchParams(location.search)
-  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) && v >= 0 ? v : d }
   const CFG = {
-    cycle: num('cycle', 45),
-    colors: P.get('colors') === 'glow' ? 'glow' : 'theme',
-    gamma: num('gamma', 2.2) || 2.2,
+    ...Deepsplay.params(),
   }
 
   const canvas = document.getElementById('c')

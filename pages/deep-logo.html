@@ -4,37 +4,92 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deep Cyber</title>
-<!--
-  Animated deep cyber logo. Self-contained, scales to any viewport.
+<script type="application/toml" id="deepsplay-page">
+description = "Animated deep cyber logo: sparks run along the traces and make letters and neurons fire."
+details     = """
+Self-contained, scales to any viewport.
 
-  Sparks enter at the pin holes (left and top) and run along the traces and synapses.
-  A spark that reaches a pin hole leaves the logo. A spark that reaches a letter or a
-  neuron charges it; at its threshold the node fires a spark on each of its connections.
+Sparks enter at the pin holes (left and top) and run along the traces and synapses.
+A spark that reaches a pin hole leaves the logo. A spark that reaches a letter or a
+neuron charges it; at its threshold the node fires a spark on each of its connections.
 
-  URL parameters, for trying things out:
-    color=random     every spark gets its own random bright colour (default)
-    color=inherit    sparks enter with random bright colours, nodes mix the colours
-                     they receive and fire in their mixed colour
-    color=palette    random pick from a small neon palette
-    color=white      all sparks white
-    color=200        fixed hue in degrees (0-360)
-    rate=3           sparks per second entering at the pins
-    speed=120        spark speed in logo units per second (the logo is ~310 units wide)
-    threshold=5      charge a node needs before it fires; each spark adds 1. Without leak a
-                     fraction rounds up (4.5 fires on the 5th spark); with leak, timing
-                     decides (4.5 fires on the 5th spark if they come fast, else on the 6th)
-    spread=1         random variation of the threshold per node, uniform +-spread
-                     (int or float, 0 for none); thresholds never go below 1
-    leak=0           charge a node loses per second (default 0: no leak)
-    trail=16         trail length in logo units
-    fill=1           show the charge as a fill rising from the bottom of letters and
-                     neurons (default 0: off)
-    halo=1           show the charge as a halo that grows brighter (default 0: off;
-                     with both off, letters and neurons only flash when they fire)
-    glow=mix         letters and neurons glow in the mixed colour of the sparks they
-                     received (default: white)
-    debug            draw the graph on top
--->
+Threshold: each spark adds 1. Without leak a fraction rounds up (4.5 fires on the 5th
+spark); with leak, timing decides (4.5 fires on the 5th spark if they come fast, else on
+the 6th).
+"""
+author      = "kratenko"
+
+[params.color]
+type        = "string"
+default     = "random"
+description = "random: every spark its own bright colour; inherit: nodes mix the colours they receive and fire in it; palette: a small neon palette; white; or a hue in degrees (0-360)."
+
+[params.glow]
+type        = "enum"
+values      = ["white", "mix"]
+default     = "white"
+description = "Glow of letters and neurons: white, or the mixed colour of the sparks they received."
+
+[params.rate]
+type        = "number"
+default     = 3
+min         = 0
+description = "Sparks per second entering at the pins."
+
+[params.speed]
+type        = "number"
+default     = 120
+min         = 1
+description = "Spark speed in logo units per second (the logo is about 310 units wide)."
+
+[params.threshold]
+type        = "number"
+default     = 5
+min         = 1
+description = "Charge a node needs before it fires; each spark adds 1."
+
+[params.spread]
+type        = "number"
+default     = 1
+min         = 0
+description = "Random variation of the threshold per node, uniform +-spread; thresholds never go below 1."
+
+[params.leak]
+type        = "number"
+default     = 0
+min         = 0
+description = "Charge a node loses per second."
+
+[params.trail]
+type        = "number"
+default     = 16
+min         = 0
+description = "Trail length in logo units."
+
+[params.fill]
+type        = "bool"
+default     = false
+description = "Show the charge as a fill rising from the bottom of letters and neurons."
+
+[params.halo]
+type        = "bool"
+default     = false
+description = "Show the charge as a halo that grows brighter (with fill and halo off, letters and neurons only flash when they fire)."
+
+[params.debug]
+type        = "bool"
+default     = false
+description = "Draw the graph on top."
+
+[[variants]]
+label = "All white"
+query = "color=white"
+
+[[variants]]
+label = "Mixing colours, with charge"
+query = "color=inherit&glow=mix&fill=1&halo=1"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
 <style>
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; cursor: none; }
 #logo, #fx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
@@ -144,22 +199,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   'use strict'
 
   // ---------- configuration ----------
-  const P = new URLSearchParams(location.search)
-  const num = (k, d) => { const v = parseFloat(P.get(k)); return Number.isFinite(v) ? v : d }
-  const CFG = {
-    color: P.get('color') || 'random',
-    glow: P.get('glow') || 'white',
-    rate: num('rate', 3),
-    speed: num('speed', 120),
-    threshold: num('threshold', 5),
-    spread: num('spread', 1),
-    leak: num('leak', 0),
-    trail: num('trail', 16),
-    fill: num('fill', 0) > 0,
-    halo: num('halo', 0) > 0,
-    maxSparks: 250,
-    debug: P.has('debug'),
-  }
+  const CFG = { ...Deepsplay.params(), maxSparks: 250 }
 
   // ---------- colours ----------
   function hsl(h, s, l) {

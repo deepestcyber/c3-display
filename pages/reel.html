@@ -3,11 +3,33 @@
 <head>
 <meta charset="utf-8">
 <title>Reel</title>
-<meta name="author" content="Peer Springstübe">
-<!-- Zusaetzliche Seite fuers Office Board (config "pages"). Feste Groesse 1920 x 1080, das Board skaliert sie.
-     Zeigt bei jedem Laden eine zufaellige Animation mit einer zufaelligen Welt.
-     Zum Testen: reel.html?anim=wireworld&world=2 (Index in der Weltenliste), reel.html?anim=life (oder wator, mandelbrot, julia, newton, ship, ifs, flame, lsystem).
-     reload=30 laedt die Seite alle 30 s neu (wie F5, mit denselben Parametern), wie im Wechsel am Board. -->
+<script type="application/toml" id="deepsplay-page">
+description = "Older reel from the office board: a random animation with a random world on every load."
+details     = """
+Fixed size 1920 x 1080 (the board scaled it). On every load it shows a random animation
+(wireworld, life, wator, mandelbrot, julia, newton, ifs, flame, lsystem) with a random world
+from its list. Its animations now have pages of their own (life.html, wator.html,
+wireworld.html, flame.html); this page is kept as their source.
+"""
+author      = "kratenko"
+
+[params.anim]
+type        = "string"
+description = "Animation by id (wireworld, life, wator, mandelbrot, julia, newton, ifs, flame, lsystem) or index; default: random."
+
+[params.world]
+type        = "string"
+description = "World of the animation by index in its list; default: random."
+
+[params.reload]
+type        = "number"
+min         = 0
+description = "Reload the page after this many seconds (as the board's rotation did); 0 or unset: never."
+
+[[variants]]
+label = "Wireworld, third circuit"
+query = "anim=wireworld&world=2"
+</script>
 <style>
 @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: block;
   src: url("../assets/fonts/inter-latin-wght-normal.woff2") format("woff2"); }

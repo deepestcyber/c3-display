@@ -4,26 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rain radar</title>
-<!--
-  Rain radar of the DWD (layer dwd:Niederschlagsradar of its WMS) over a BKG TopPlusOpen map,
-  as a short animation: the last hour of measurements, then the DWD's forecast.
-
-  Caching (upstreams in screen.toml; deepsplay docs/pages.md, ADR 19, 20, 22):
-  - radar_times: the layer's GetCapabilities. Its REFERENCE_TIME is the newest DWD run
-    (every 5 minutes, published about 7 minutes late). All screens read the same answer,
-    so they all build the same frame URLs; no screen clock decides which data exists.
-  - radar: one GetMap per frame, always for the same square around lat/lon at the same pixel
-    size, whatever the screen. A measured frame (time <= run) is asked for by its time only,
-    and is the same image whatever run is current; a forecast frame names its run too
-    (dim_reference_time). So no URL ever changes its answer; a new run costs one new
-    measured frame and the forecast frames, once for all screens.
-  - map: TopPlusOpen tiles, at the zoom that suits the screen; they do not change.
-  Do not set the WMS parameter EXCEPTIONS: the default XML errors are refused by the
-  cache (accepted_types), errors drawn into a PNG would be cached.
--->
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
 description = "Rain radar of the DWD over a map: the last hour and the forecast as an animation."
+details     = """
+DWD layer dwd:Niederschlagsradar of its WMS over a BKG TopPlusOpen map: the last hour of
+measurements, then the DWD's forecast.
+
+Caching (upstreams in screen.toml; deepsplay docs/pages.md, ADR 19, 20, 22):
+- radar_times: the layer's GetCapabilities. Its REFERENCE_TIME is the newest DWD run (every
+  5 minutes, published about 7 minutes late). All screens read the same answer, so they all
+  build the same frame URLs; no screen clock decides which data exists.
+- radar: one GetMap per frame, always for the same square around lat/lon at the same pixel
+  size, whatever the screen. A measured frame (time <= run) is asked for by its time only,
+  and is the same image whatever run is current; a forecast frame names its run too
+  (dim_reference_time). So no URL ever changes its answer; a new run costs one new measured
+  frame and the forecast frames, once for all screens.
+- map: TopPlusOpen tiles, at the zoom that suits the screen; they do not change.
+
+Do not set the WMS parameter EXCEPTIONS: the default XML errors are refused by the cache
+(accepted_types), errors drawn into a PNG would be cached.
+"""
+author      = "kratenko"
+credits     = "Radar: Deutscher Wetterdienst; map: © GeoBasis-DE / BKG, dl-de/by-2-0 (TopPlusOpen)"
 uses = ["theme"]
 
 [params.lat]

@@ -4,15 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Citizens</title>
-<!--
-  Random 40C3 citizens from the citizen creator parts (citizen.js), in a grid that
-  fills the screen. Every few seconds one citizen is replaced by a new one.
-  Fixed to the 40C3 theme in its key colours (green on almost black): <html data-theme
-  data-variant>, so ?theme= and ?variant= are ignored.
--->
 <link rel="stylesheet" href="../theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
 description = "Random 40C3 citizens, composed in the browser from the citizen creator parts."
+details     = """
+Random citizens from the citizen creator parts (citizen.js), in a grid that fills the
+screen. Every few seconds one citizen is replaced by a new one.
+
+Fixed to the 40C3 theme in its key colours (green on almost black) with
+<html data-theme data-variant>, so ?theme= and ?variant= are ignored.
+"""
+author      = "kratenko"
+credits     = "Citizen creator parts from the 40C3 style guide"
 uses = ["theme"]
 
 [params.count]

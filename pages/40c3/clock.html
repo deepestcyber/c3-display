@@ -4,19 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Congress clock</title>
-<!--
-  Clock in the 40C3 theme, fixed to the key colours (green on almost black, with glow):
-  on the left the congress and its day, on the right the date and the time, each pair a
-  small line over a large one; three random citizens along the bottom.
-
-  Congress days: day 1 is 27 December, day 4 (the last) 30 December. Days before count
-  down to 0, -1, ...; from 31 December on, the count is for the next congress, which is
-  then also the one named. 2026 is 40C3, so 31 December 2026 is day -360 of 41C3.
-  Days change at midnight in the time zone `tz`.
--->
 <link rel="stylesheet" href="../theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
 description = "Day of the congress (day 1 is 27 December), time and date, with three random citizens."
+details     = """
+In the 40C3 theme, fixed to the key colours (green on almost black, with glow): on the left
+the congress and its day, on the right the date and the time, each pair a small line over a
+large one; three random citizens along the bottom.
+
+Congress days: day 1 is 27 December, day 4 (the last) 30 December. Days before count down
+to 0, -1, ...; from 31 December on, the count is for the next congress, which is then also
+the one named. 2026 is 40C3, so 31 December 2026 is day -360 of 41C3. Days change at
+midnight in the time zone tz.
+"""
+author      = "kratenko"
+credits     = "Logo and citizen creator parts from the 40C3 style guide"
 uses = ["theme"]
 
 [params.tz]
