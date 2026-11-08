@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Citizens</title>
+<!--
+  Random 40C3 citizens from the citizen creator parts (citizen.js), in a grid that
+  fills the screen. Every few seconds one citizen is replaced by a new one.
+-->
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Random 40C3 citizens, composed in the browser from the citizen creator parts."
+uses = ["theme"]
+
+[params.count]
+type        = "int"
+default     = 12
+min         = 1
+max         = 200
+description = "Number of citizens on the screen (rounded to fill the grid)."
+
+[params.interval]
+type        = "duration"
+default     = "1500ms"
+min         = "100ms"
+description = "Time between two citizens being replaced; 0 keeps them."
+
+[params.colors]
+type        = "enum"
+values      = ["original", "theme"]
+default     = "original"
+description = "The parts' own colours, or the theme's palette."
+
+[params.citizen]
+type        = "string"
+description = "Show only this citizen, as encoded by Citizen.encode (e.g. h3.r1.e5.n0.m4.b2.d7)."
+
+[params.seed]
+type        = "int"
+description = "Start from this seed; the same seed gives the same citizens."
+
+[params.labels]
+type        = "bool"
+default     = false
+description = "Show each citizen's code below it."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<script src="citizen.js"></script>
+<style>
+  #grid { position: fixed; inset: var(--field-margin); display: grid; gap: 1vmin; }
+  #grid figure { margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 0; }
+  #grid svg { flex: 1 1 0; min-height: 0; width: 100%; transition: opacity 500ms ease; }
+  #grid svg.out { opacity: 0; }
+  #grid figcaption { font: 1.4vmin var(--font-mono); color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script>
+(async () => {
+  'use strict'
+  const P = Deepsplay.params()
+  await Theme.ready
+  const C = await Citizen.load()
+  const grid = document.getElementById('grid')
+
+  const colors = () => {
+    if (P.colors !== 'theme') return {}
+    const p = Theme.palette()
+    return { green: Theme.rgba(Theme.color('--accent')), white: Theme.rgba(p[0]), black: Theme.token('--bg') || '#000' }
+  }
+
+  let seed = P.seed ?? Math.floor(Math.random() * 2 ** 32)
+  const nextSpec = () => C.random(seed++ >>> 0)
+
+  function cell(spec) {
+    const fig = document.createElement('figure')
+    fig.append(C.svg(spec, { colors: colors() }))
+    if (P.labels) {
+      const cap = document.createElement('figcaption')
+      cap.textContent = Citizen.encode(spec)
+      fig.append(cap)
+    }
+    return fig
+  }
+
+  if (P.citizen) {
+    grid.style.gridTemplate = '1fr / 1fr'
+    grid.append(cell(Citizen.decode(P.citizen)))
+    return
+  }
+
+  // grid with about `count` square cells for the screen's shape
+  const W = grid.clientWidth, H = grid.clientHeight
+  let cols = Math.max(1, Math.round(Math.sqrt(P.count * W / H)))
+  const rows = Math.max(1, Math.ceil(P.count / cols))
+  grid.style.gridTemplate = `repeat(${rows}, 1fr) / repeat(${cols}, 1fr)`
+  for (let i = 0; i < rows * cols; i++) grid.append(cell(nextSpec()))
+
+  if (P.interval > 0) {
+    setInterval(() => {
+      const fig = grid.children[Math.floor(Math.random() * grid.children.length)]
+      const old = fig.querySelector('svg')
+      old.classList.add('out')
+      setTimeout(() => fig.replaceWith(cell(nextSpec())), 500)
+    }, P.interval)
+  }
+})()
+</script>
+</body>
+</html>
