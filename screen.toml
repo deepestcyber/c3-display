@@ -38,6 +38,10 @@ path     = "argos.html"
 [[page]]
 path     = "argos.html?eyes=24&speed=3"
 
+[[page]]
+path     = "mandelbrot.html"
+duration = "20s"
+
 # Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
 # Runs only where the host configuration allows it (backend = true).
 [backend]

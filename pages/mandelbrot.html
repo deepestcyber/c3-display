@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mandelbrot Set</title>
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Endless zoom into the Mandelbrot set: it picks a spot with structure, marks it and flies in."
+details     = """
+Starts with the whole set, looks for a spot with much structure in the current image (the
+edge of the set), marks it and zooms in, again and again. Beyond a zoom of about 1e11 the
+precision of doubles runs out, and it starts over; also when nothing worthwhile is left.
+
+The target is scored on a grid of samples: many changes of the iteration count mean
+structure; areas inside the set or far outside (smooth bands) score low, as does noise
+from pixel to pixel (dust the resolution cannot show). Crossings between inside and outside
+count extra from the second per row or column, so a jagged edge or a mini copy scores high
+and a smooth edge does not. Targets under the text plates are left out.
+
+Computed at a fraction of the screen resolution (scale), in bands of rows by background
+workers on all cores but one, so the main thread only draws and the animation stays smooth.
+The next image is computed from the start of the hold, while the current one stands and the
+target is marked. Colours: smooth iteration count, logarithmic so
+there are bands at every depth, through a cyclic gradient from the theme's palette.
+"""
+author      = "kratenko"
+uses = ["theme"]
+
+[params.colors]
+type        = "enum"
+values      = ["theme", "classic"]
+default     = "theme"
+description = "theme: a gradient from the theme's palette; classic: one of the reel's four gradients, at random."
+
+[params.scale]
+type        = "number"
+default     = 2
+min         = 1
+max         = 8
+description = "Device pixels per computed pixel; higher is faster and blurrier."
+
+[params.workers]
+type        = "int"
+min         = 0
+max         = 16
+description = "Background threads for computing; default: all cores but one (at most 8); 0 computes on the main thread."
+
+[params.perf]
+type        = "bool"
+default     = false
+description = "Log the time each image takes to compute to the console."
+
+[params.hold]
+type        = "duration"
+default     = "2500ms"
+description = "Time an image stays before the next target is chosen."
+
+[params.highlight]
+type        = "duration"
+default     = "2200ms"
+description = "Time the target is marked before the zoom (longer if computing takes longer)."
+
+[params.zoom]
+type        = "duration"
+default     = "3s"
+min         = "200ms"
+description = "Duration of the flight into the target."
+
+[[variants]]
+label = "Classic colours, fast"
+query = "colors=classic&hold=1s&highlight=1s&zoom=2s"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+<style>
+  /* no blurred backdrop: it is recomputed whenever the image under the plates moves */
+  .plate { -webkit-backdrop-filter: none; backdrop-filter: none; }
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<div class="overlay">
+  <div class="caption plate rise">
+    <div class="kicker">Fractal</div>
+    <h1 class="title">Mandelbrot Set</h1>
+    <div class="sub" id="sub">&nbsp;</div>
+  </div>
+  <div class="meta plate br rise" style="animation-delay: 250ms">
+    <div><span class="label">Zoom</span><span class="value" id="zoom">1×</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+  const el = id => document.getElementById(id)
+  const fmt = new Intl.NumberFormat('en-US')
+
+  // The whole set: centre and image height, imaginary part upwards.
+  const HOME = { x: -0.65, y: 0, h: 2.7 }
+  const ZOOM_BY = [4, 8]                 // each flight zooms by 4 to 8
+
+  // The reel's four cyclic gradients (colors=classic).
+  const CLASSIC = [
+    [[0, 7, 100], [32, 107, 203], [237, 255, 255], [255, 170, 0], [0, 2, 0]],
+    [[6, 16, 26], [0, 129, 178], [0, 255, 92], [230, 241, 248], [7, 26, 44]],
+    [[20, 0, 40], [140, 20, 140], [255, 90, 110], [255, 220, 150], [40, 10, 60]],
+    [[0, 0, 0], [120, 20, 0], [255, 120, 0], [255, 240, 160], [30, 0, 0]],
+  ]
+
+  // ---------- colours ----------
+  let lut, LUT_N = 1024, hue, inside, bg, ink, glow
+  function makeColours() {
+    let stops
+    if (P.colors === 'classic') stops = CLASSIC[Math.floor(Math.random() * CLASSIC.length)]
+    else {
+      // cyclic: from the colour closest to the background up to the one that stands out most, and back
+      const p = Theme.palette().map(c => c.slice(0, 3)), n = p.length
+      stops = [p[n - 1], p[Math.min(3, n - 2)], p[Math.min(1, n - 1)], p[0], p[Math.min(2, n - 1)], p[n - 2]]
+    }
+    lut = new Uint8Array(LUT_N * 3)
+    for (let i = 0; i < LUT_N; i++) {
+      const f = i / LUT_N * stops.length, a = stops[Math.floor(f)], b = stops[(Math.floor(f) + 1) % stops.length], u = f % 1
+      for (let c = 0; c < 3; c++) lut[i * 3 + c] = Math.round(a[c] + (b[c] - a[c]) * u)
+    }
+    hue = Math.random()                       // shift within the gradient
+    inside = P.colors === 'classic' ? [0, 0, 0] : Theme.color('--bg').slice(0, 3)
+    bg = Theme.color('--bg'); ink = Theme.color('--ink'); glow = Theme.color('--glow')
+  }
+
+  // ---------- layout ----------
+  let dpr, S, W, H, ox, oy, avoid
+  function layout() {
+    dpr = window.devicePixelRatio || 1
+    canvas.width = Math.round(innerWidth * dpr)
+    canvas.height = Math.round(innerHeight * dpr)
+    const m = Theme.px('--field-margin') * dpr
+    S = P.scale                                       // device pixels per computed pixel
+    W = Math.floor((canvas.width - 2 * m) / S)
+    H = Math.floor((canvas.height - 2 * m) / S)
+    ox = Math.floor((canvas.width - W * S) / 2)
+    oy = Math.floor((canvas.height - H * S) / 2)
+    ctx.imageSmoothingEnabled = true          // resizing the canvas resets these
+    ctx.imageSmoothingQuality = 'high'
+    // the text plates, in computed pixels, padded: targets there would be hidden
+    const pad = Theme.px('--margin') / 2
+    avoid = [...document.querySelectorAll('.overlay .plate')].map(p => {
+      const r = p.getBoundingClientRect()
+      return { x0: ((r.left - pad) * dpr - ox) / S, y0: ((r.top - pad) * dpr - oy) / S,
+               x1: ((r.right + pad) * dpr - ox) / S, y1: ((r.bottom + pad) * dpr - oy) / S }
+    })
+  }
+
+  // ---------- computing ----------
+  // Rows y0..y1 of an image, into rgba (4 bytes per pixel) and vals (smooth iteration count,
+  // -1 inside the set), both starting at row y0. Self-contained: it also runs in the workers,
+  // as source text.
+  function computeRows(view, W, H, y0, y1, M, lut, LUT_N, hue, inside, rgba, vals) {
+    const px = view.h / H, left = view.x - W / 2 * px, top = view.y + H / 2 * px
+    for (let y = y0; y < y1; y++) {
+      const ci = top - (y + 0.5) * px
+      for (let x = 0; x < W; x++) {
+        const cr = left + (x + 0.5) * px, k = (y - y0) * W + x
+        let n = 0, zr = 0, zi = 0, zr2 = 0, zi2 = 0
+        // main cardioid and period-2 bulb: inside, no need to iterate
+        const q = (cr - 0.25) * (cr - 0.25) + ci * ci
+        if (q * (q + cr - 0.25) <= 0.25 * ci * ci || (cr + 1) * (cr + 1) + ci * ci <= 0.0625) n = M
+        while (n < M && zr2 + zi2 < 256) { zi = 2 * zr * zi + ci; zr = zr2 - zi2 + cr; zr2 = zr * zr; zi2 = zi * zi; n++ }
+        if (n >= M) {
+          vals[k] = -1
+          rgba[k * 4] = inside[0]; rgba[k * 4 + 1] = inside[1]; rgba[k * 4 + 2] = inside[2]
+        } else {
+          const mu = n + 1 - Math.log(Math.log(zr2 + zi2) / 2 / Math.LN2) / Math.LN2     // smooth count
+          const li = Math.floor(((Math.log(mu + 1) * 1.2 + hue) % 1) * LUT_N) * 3       // bands at every depth
+          vals[k] = mu
+          rgba[k * 4] = lut[li]; rgba[k * 4 + 1] = lut[li + 1]; rgba[k * 4 + 2] = lut[li + 2]
+        }
+        rgba[k * 4 + 3] = 255
+      }
+    }
+  }
+
+  // Workers compute bands of rows in the background, on all cores but one (at most 8); the main
+  // thread only draws. Without workers (workers=0, or none available), the main thread computes
+  // in time slices.
+  const BAND = 8                                   // rows per task
+  let pool = null, queue = [], jobs = new Map(), nextId = 1
+  function startPool() {
+    const n = P.workers ?? Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1))
+    if (n < 1 || typeof Worker === 'undefined') return
+    const src = `${computeRows.toString()}
+      let colours
+      onmessage = e => {
+        const m = e.data
+        if (m.colours) { colours = m.colours; return }
+        const rows = m.y1 - m.y0, rgba = new Uint8ClampedArray(rows * m.W * 4), vals = new Float32Array(rows * m.W)
+        const c = colours
+        computeRows(m.view, m.W, m.H, m.y0, m.y1, m.M, c.lut, c.LUT_N, c.hue, c.inside, rgba, vals)
+        postMessage({ id: m.id, y0: m.y0, y1: m.y1, rgba, vals }, [rgba.buffer, vals.buffer])
+      }`
+    try {
+      const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))
+      pool = Array.from({ length: n }, () => {
+        const w = new Worker(url)
+        w.postMessage({ colours: { lut, LUT_N, hue, inside } })
+        w.onmessage = e => { w.busy = false; deliver(e.data); pump() }
+        w.onerror = e => console.warn('mandelbrot: worker:', e.message)
+        return w
+      })
+    } catch (e) {
+      console.warn('mandelbrot: no workers, computing on the main thread:', e.message)
+      pool = null
+    }
+  }
+  function pump() {
+    for (const w of pool) {
+      while (!w.busy && queue.length) {
+        const t = queue.shift()
+        if (!jobs.has(t.id)) continue                 // dropped job
+        w.busy = true
+        w.postMessage(t)
+      }
+    }
+  }
+  function deliver({ id, y0, y1, rgba, vals }) {
+    const j = jobs.get(id)
+    if (!j) return
+    j.img.data.set(rgba, y0 * W * 4)
+    j.vals.set(vals, y0 * W)
+    j.cctx.putImageData(j.img, 0, 0, 0, y0, W, y1 - y0)
+    j.rowsDone += y1 - y0
+    if (j.rowsDone >= H) { jobs.delete(id); finished(j) }
+  }
+
+  function job(view) {
+    const c = document.createElement('canvas')
+    c.width = W; c.height = H
+    const cctx = c.getContext('2d')
+    const j = { id: nextId++, view, canvas: c, cctx, img: cctx.createImageData(W, H), vals: new Float32Array(W * H),
+                row: 0, rowsDone: 0, started: performance.now(), maxIter: Math.round(200 + 120 * Math.log10(HOME.h / view.h)) }
+    if (pool) {
+      jobs.set(j.id, j)
+      for (let y = 0; y < H; y += BAND) {
+        queue.push({ id: j.id, view, W, H, y0: y, y1: Math.min(H, y + BAND), M: j.maxIter })
+      }
+      pump()
+    }
+    return j
+  }
+  function finished(j) {
+    j.ms = performance.now() - j.started
+    if (P.perf) console.log(`mandelbrot: zoom ${(HOME.h / j.view.h).toExponential(1)}, ${j.maxIter} iterations max, ` +
+                            `${W}x${H}, ${Math.round(j.ms)} ms, ${pool ? pool.length + ' workers' : 'main thread'}`)
+  }
+  // Drops all jobs still being computed (start over, resize).
+  function dropJobs() { jobs.clear(); queue = [] }
+
+  // True when the image is complete. Without workers, computes rows here until the time
+  // budget is used up.
+  function render(j, budget) {
+    if (pool) return j.rowsDone >= H
+    const t0 = performance.now(), from = j.row
+    while (j.row < H && performance.now() - t0 < budget) {
+      const y = j.row
+      computeRows(j.view, W, H, y, y + 1, j.maxIter, lut, LUT_N, hue, inside,
+                  j.img.data.subarray(y * W * 4, (y + 1) * W * 4), j.vals.subarray(y * W, (y + 1) * W))
+      j.row++
+    }
+    if (j.row > from) j.cctx.putImageData(j.img, 0, 0, 0, from, W, j.row - from)
+    if (j.row >= H && j.ms === undefined) finished(j)
+    return j.row >= H
+  }
+
+  // Scores random parts of the image for structure (see details) and picks one of the best.
+  function chooseTarget(j) {
+    const px = j.view.h / H, M = j.maxIter, GX = 20, GY = 10, cands = []
+    for (let c = 0; c < 250; c++) {
+      const by = ZOOM_BY[0] + Math.random() * (ZOOM_BY[1] - ZOOM_BY[0])
+      const rw = W / by, rh = H / by, rx = Math.random() * (W - rw), ry = Math.random() * (H - rh)
+      if (avoid.some(a => rx < a.x1 && rx + rw > a.x0 && ry < a.y1 && ry + rh > a.y0)) continue
+      let inside = 0, grad = 0, noise = 0, flips = 0
+      const rowCross = [], colCross = [], row = []
+      for (let sy = 0; sy < GY; sy++) for (let sx = 0; sx < GX; sx++) {
+        const k = Math.floor(ry + (sy + 0.5) * rh / GY) * W + Math.floor(rx + (sx + 0.5) * rw / GX)
+        let v = j.vals[k]
+        if ((j.vals[k] < 0) !== (j.vals[k + 1] < 0)) flips++
+        if ((j.vals[k] < 0) !== (j.vals[k + W] < 0)) flips++
+        if (v < 0) { inside++; v = M }
+        else if (j.vals[k + 1] >= 0 && j.vals[k + W] >= 0) noise += Math.abs(v - j.vals[k + 1]) + Math.abs(v - j.vals[k + W])
+        if (sx) {
+          grad += Math.min(50, Math.abs(v - row[sx - 1]))
+          if ((v === M) !== (row[sx - 1] === M)) rowCross[sy] = (rowCross[sy] || 0) + 1
+        }
+        if (sy) {
+          grad += Math.min(50, Math.abs(v - row[sx]))
+          if ((v === M) !== (row[sx] === M)) colCross[sx] = (colCross[sx] || 0) + 1
+        }
+        row[sx] = v
+      }
+      const fin = inside / (GX * GY), dust = flips / (2 * GX * GY)
+      if (fin > 0.6 || dust > 0.15) continue
+      noise /= GX * GY
+      let cross = 0
+      for (const n of [...rowCross, ...colCross]) if (n > 1) cross += n - 1
+      cands.push({ x: rx, y: ry, w: rw, h: rh, score: grad / (1 + noise / 4) * (1 + cross / 8) * (1 - 4 * dust) })
+    }
+    if (!cands.length) return null
+    cands.sort((a, b) => b.score - a.score)
+    const t = cands[Math.floor(Math.random() * Math.min(6, cands.length))]
+    t.view = { x: j.view.x + (t.x + t.w / 2 - W / 2) * px, y: j.view.y - (t.y + t.h / 2 - H / 2) * px, h: j.view.h * t.h / H }
+    return t
+  }
+
+  // ---------- drawing ----------
+  function drawFull(j) { ctx.drawImage(j.canvas, 0, 0, W, H, ox, oy, W * S, H * S) }
+
+  // Marker: darken the surroundings, a frame with glow. a = opacity, pulse = brightness of the frame.
+  function drawMarker(x, y, w, h, a, pulse) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h)
+    ctx.fillStyle = Theme.rgba(bg, 0.55 * a)
+    ctx.fillRect(ox, oy, W * S, y - oy)
+    ctx.fillRect(ox, y + h, W * S, oy + H * S - y - h)
+    ctx.fillRect(ox, y, x - ox, h)
+    ctx.fillRect(x + w, y, ox + W * S - x - w, h)
+    // the glow as a few wider, fainter strokes: shadowBlur around a frame that grows to the
+    // full screen is expensive
+    for (const [width, alpha] of [[12, 0.12], [7, 0.22], [4, 0.4]]) {
+      ctx.strokeStyle = Theme.rgba(glow, glow[3] * alpha * a * pulse)
+      ctx.lineWidth = width * dpr
+      ctx.strokeRect(x, y, w, h)
+    }
+    ctx.strokeStyle = Theme.rgba(ink, a * pulse)
+    ctx.lineWidth = 2 * dpr
+    ctx.strokeRect(x, y, w, h)
+  }
+
+  // ---------- run ----------
+  let cur, next, target, phase, t0, view
+  function restart() { dropJobs(); cur = job(HOME); next = null; target = null; view = HOME; phase = 'first' }
+
+  // Hold: the image stands, and the next target is chosen at once, so its image is computed
+  // during hold and highlight. Beyond about 1e-11 doubles are not precise enough, or nothing
+  // worthwhile is left: then hold ends in a new start.
+  function beginHold(t) {
+    phase = 'hold'; t0 = t
+    target = cur.view.h < HOME.h * 1e-11 ? null : chooseTarget(cur)
+    next = target ? job(target.view) : null
+  }
+
+  // centre and zoom in the plates, at most 5 times a second: each change lays out the plate again
+  let statusAt = 0
+  function showStatus(t, force) {
+    if (!force && t - statusAt < 200) return
+    statusAt = t
+    const zoom = HOME.h / view.h, digits = Math.min(12, 3 + Math.floor(Math.log10(zoom)))
+    const num = v => v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace('-', '−')
+    const sub = `${num(view.x)} ${view.y < 0 ? '−' : '+'} ${num(Math.abs(view.y))}i`
+    const z = `${fmt.format(Math.round(zoom))}×`
+    if (el('sub').textContent !== sub) el('sub').textContent = sub
+    if (el('zoom').textContent !== z) el('zoom').textContent = z
+  }
+
+  // perf: frame times during the flight, per half (interval between frames, and time spent
+  // in this function)
+  let lastFrame = 0, flight = null
+  function measure(t, work, p) {
+    if (!P.perf) return
+    if (!flight) flight = [{ gaps: [], work: [] }, { gaps: [], work: [] }]
+    const h = flight[p < 0.5 ? 0 : 1]
+    h.gaps.push(t - lastFrame); h.work.push(work)
+  }
+  function report() {
+    if (!P.perf || !flight) return
+    const s = a => a.length ? `avg ${(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1)}, max ${Math.max(...a).toFixed(1)}` : '-'
+    console.log(`mandelbrot: flight, 1st half: frames ${s(flight[0].gaps)} ms, work ${s(flight[0].work)} ms; ` +
+                `2nd half: frames ${s(flight[1].gaps)} ms, work ${s(flight[1].work)} ms`)
+    flight = null
+  }
+
+  function frame(t) {
+    const dt = t - t0, w0 = performance.now()
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (phase === 'first') {
+      if (render(cur, 30)) beginHold(t)
+      drawFull(cur)
+    } else if (phase === 'hold') {
+      if (next) render(next, 14)
+      drawFull(cur)
+      if (dt >= P.hold) {
+        if (!target) restart()
+        else { phase = 'highlight'; t0 = t }
+      }
+    } else if (phase === 'highlight') {
+      const ready = render(next, 14)
+      drawFull(cur)
+      const a = Math.min(1, dt / 400), grow = 1 + 0.25 * (1 - a) ** 3
+      const w = target.w * S * grow, h = target.h * S * grow
+      drawMarker(ox + (target.x + target.w / 2) * S - w / 2, oy + (target.y + target.h / 2) * S - h / 2, w, h,
+                 a, 0.75 + 0.25 * Math.sin(dt / 160))
+      if (ready && dt >= P.highlight) { phase = 'zoom'; t0 = t }
+    } else if (phase === 'zoom') {
+      const p = Math.min(1, dt / P.zoom)
+      ctx.imageSmoothingQuality = 'low'        // the image moves: cheap scaling is enough
+      drawZoom(p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2)
+      ctx.imageSmoothingQuality = 'high'
+      showStatus(t, p >= 1)
+      measure(t, performance.now() - w0, p)
+      if (p >= 1) { cur = next; view = cur.view; beginHold(t); report() }
+    } else showStatus(t)
+    lastFrame = t
+    requestAnimationFrame(frame)
+  }
+
+  // The visible part shrinks geometrically to the target, its fixed point stays in place; the
+  // sharp target image fades in over the upscaled old one, the marker flies along and fades.
+  function drawZoom(p) {
+    const kR = target.w / W, k = kR ** p
+    const sx = target.x * (1 - k) / (1 - kR), sy = target.y * (1 - k) / (1 - kR)
+    const tx = ox + (target.x - sx) / k * S, ty = oy + (target.y - sy) / k * S, tw = target.w / k * S, th = target.h / k * S
+    ctx.drawImage(cur.canvas, sx, sy, W * k, H * k, ox, oy, W * S, H * S)
+    const fade = Math.max(0, Math.min(1, (p - 0.5) / 0.5))
+    if (fade > 0) {
+      ctx.globalAlpha = fade * fade * (3 - 2 * fade)
+      ctx.drawImage(next.canvas, 0, 0, W, H, tx, ty, tw, th)
+      ctx.globalAlpha = 1
+    }
+    const out = Math.max(0, Math.min(1, (p - 0.7) / 0.3))
+    if (out < 1) drawMarker(tx, ty, tw, th, 1 - out * out * (3 - 2 * out), 1)
+    const px = cur.view.h / H
+    view = { x: cur.view.x + (sx + W * k / 2 - W / 2) * px, y: cur.view.y - (sy + H * k / 2 - H / 2) * px, h: cur.view.h * k }
+  }
+
+  Theme.ready.then(() => {
+    makeColours()
+    startPool()
+    layout()
+    restart()
+    t0 = performance.now()
+    addEventListener('resize', () => { layout(); restart() })
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>
