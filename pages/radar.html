@@ -22,11 +22,14 @@ Caching (upstreams in screen.toml; deepsplay docs/pages.md, ADR 19, 20, 22):
   frame and the forecast frames, once for all screens.
 - map: TopPlusOpen tiles, at the zoom that suits the screen; they do not change.
 
+- weather: Bright Sky's /current_weather for the DWD station given as station, else for
+  lat/lon (DWD observations of the nearest station, gaps filled from others), asked every 5 minutes; the box top left shows it.
+
 Do not set the WMS parameter EXCEPTIONS: the default XML errors are refused by the cache
 (accepted_types), errors drawn into a PNG would be cached.
 """
 author      = "kratenko"
-credits     = "Radar: Deutscher Wetterdienst; map: © GeoBasis-DE / BKG, dl-de/by-2-0 (TopPlusOpen)"
+credits     = "Radar and weather: Deutscher Wetterdienst (weather via Bright Sky); map: © GeoBasis-DE / BKG, dl-de/by-2-0 (TopPlusOpen)"
 uses = ["theme"]
 
 [params.lat]
@@ -104,6 +107,16 @@ type        = "bool"
 default     = true
 description = "Mark the centre."
 
+[params.weather]
+type        = "bool"
+default     = true
+description = "Show the current weather of the nearest DWD station top left."
+
+[params.station]
+type        = "string"
+default     = ""
+description = "DWD station ID for the weather box (e.g. 01975 Hamburg-Fuhlsbüttel); empty: the station nearest to lat/lon."
+
 [params.tz]
 type        = "string"
 default     = "Europe/Berlin"
@@ -131,6 +144,11 @@ query = "forecast=2h&loop=20s"
   .timeline span.on { height: 100%; background: var(--ink); box-shadow: none; }
   .credits { font-size: var(--fs-kicker); color: var(--ink-soft); padding: 0.5em 0.8em; }
   #sub:empty::before { content: "\00a0"; }
+  .weather { display: none; }
+  .weather.on { display: block; }
+  .weather .temp { display: flex; align-items: baseline; gap: 2vmin; }
+  .weather .temp .sub { margin: 0; }
+  .weather .meta { margin-top: 1.4vmin; display: grid; grid-template-columns: repeat(2, auto); gap: 1.2vmin 3vmin; }
 </style>
 </head>
 <body>
@@ -147,8 +165,18 @@ query = "forecast=2h&loop=20s"
     <div><span class="label" id="kind">Measured</span><span class="value" id="time">--:--</span></div>
     <div><span class="label">Offset</span><span class="value" id="offset">--</span></div>
   </div>
+  <div class="weather plate tl rise" id="weather" style="animation-delay: 500ms">
+    <div class="kicker" id="w-station">Weather</div>
+    <div class="temp"><h1 class="title" id="w-temp">--</h1><div class="sub" id="w-cond"></div></div>
+    <div class="meta">
+      <div><span class="label">Humidity</span><span class="value" id="w-hum">--</span></div>
+      <div><span class="label">Pressure</span><span class="value" id="w-press">--</span></div>
+      <div><span class="label">Wind</span><span class="value" id="w-wind">--</span></div>
+      <div><span class="label">Gusts</span><span class="value" id="w-gust">--</span></div>
+    </div>
+  </div>
   <div class="credits plate tr">
-    <div>Radar: Deutscher Wetterdienst</div>
+    <div>Radar, weather: Deutscher Wetterdienst</div>
     <div>Map: © GeoBasis-DE / BKG (<span id="year"></span>), dl-de/by-2-0</div>
   </div>
 </div>
@@ -393,6 +421,39 @@ query = "forecast=2h&loop=20s"
   }
   const loopMs = P.loop || themeDuration || 12000
 
+  // ---------- weather ----------
+  const WEATHER_POLL = 5 * 60 * 1000
+  const weatherUrl = Deepsplay.api('weather', '/current_weather') + '?' +
+    new URLSearchParams(P.station ? { dwd_station_id: P.station } : { lat: String(P.lat), lon: String(P.lon) })
+  const ICONS = {
+    'clear-day': 'Clear', 'clear-night': 'Clear', 'partly-cloudy-day': 'Partly cloudy',
+    'partly-cloudy-night': 'Partly cloudy', cloudy: 'Cloudy', fog: 'Fog', wind: 'Windy',
+    rain: 'Rain', sleet: 'Sleet', snow: 'Snow', hail: 'Hail', thunderstorm: 'Thunderstorm',
+  }
+  const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+  const num = (v, digits = 0) => v === null || v === undefined ? null : v.toFixed(digits)
+  const show = (id, v, unit) => { el(id).textContent = v === null ? '--' : v + unit }
+
+  async function pollWeather() {
+    try {
+      const res = await fetch(weatherUrl)
+      if (!res.ok) throw new Error(`weather: ${res.status}`)
+      const { weather: w, sources } = await res.json()
+      const src = sources.find(s => s.id === w.source_id) || sources[0]
+      el('w-station').textContent = src ? src.station_name : 'Weather'
+      show('w-temp', num(w.temperature, 1), '°')
+      el('w-cond').textContent = [ICONS[w.icon], w.timestamp && clock.format(Date.parse(w.timestamp))].filter(Boolean).join(' · ')
+      show('w-hum', num(w.relative_humidity), ' %')
+      show('w-press', num(w.pressure_msl), ' hPa')
+      const dir = w.wind_direction_10 === null ? '' : COMPASS[Math.round(w.wind_direction_10 / 45) % 8] + ' '
+      show('w-wind', num(w.wind_speed_10) === null ? null : dir + num(w.wind_speed_10), ' km/h')
+      show('w-gust', num(w.wind_gust_speed_10), ' km/h')
+      el('weather').classList.add('on')
+    } catch (e) {
+      console.warn('weather:', e.message)
+    }
+  }
+
   // ---------- run ----------
   let currentRun = null, incomplete = false, started = 0
 
@@ -425,6 +486,7 @@ query = "forecast=2h&loop=20s"
     // the map shows at once; the radar joins when its frames are loaded
     poll()
     setInterval(poll, TIMES_POLL)
+    if (P.weather) { pollWeather(); setInterval(pollWeather, WEATHER_POLL) }
 
     function frame(t) {
       // a new run starts at the beginning of a pass

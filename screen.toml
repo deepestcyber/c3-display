@@ -24,7 +24,7 @@ duration = "20s"
 
 [[page]]
 path     = "radar.html"
-uses     = ["radar", "radar_times", "map"]
+uses     = ["radar", "radar_times", "map", "weather"]
 
 [[page]]
 path     = "40c3/clock.html"
@@ -78,3 +78,12 @@ cache_ttl      = "24h"
 stale_ttl      = "720h"
 accepted_types = ["image/png"]
 cache_size     = "60MB"
+
+# Bright Sky (JSON API over DWD open data): current weather for radar.html. The DWD
+# observations come every 10 to 30 minutes.
+[upstream.weather]
+url            = "https://api.brightsky.dev"
+cache_ttl      = "10m"
+stale_ttl      = "6h"
+refresh        = true
+accepted_types = ["application/json"]
