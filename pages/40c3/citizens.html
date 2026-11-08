@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="40c3" data-variant="key">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +7,8 @@
 <!--
   Random 40C3 citizens from the citizen creator parts (citizen.js), in a grid that
   fills the screen. Every few seconds one citizen is replaced by a new one.
+  Fixed to the 40C3 theme in its key colours (green on almost black): <html data-theme
+  data-variant>, so ?theme= and ?variant= are ignored.
 -->
 <link rel="stylesheet" href="../theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
@@ -51,7 +53,9 @@ description = "Show each citizen's code below it."
 <style>
   #grid { position: fixed; inset: var(--field-margin); display: grid; gap: 1vmin; }
   #grid figure { margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 0; }
-  #grid svg { flex: 1 1 0; min-height: 0; width: 100%; transition: opacity 500ms ease; }
+  /* green glow, as on the clock: black heads stand out from the dark background */
+  #grid svg { flex: 1 1 0; min-height: 0; width: 100%; transition: opacity 500ms ease;
+             filter: drop-shadow(0 0 1vmin var(--glow)); }
   #grid svg.out { opacity: 0; }
   #grid figcaption { font: 1.4vmin var(--font-mono); color: var(--ink-faint); }
 </style>
