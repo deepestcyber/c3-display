@@ -29,7 +29,12 @@ description = "Number of citizens on the screen (rounded to fill the grid)."
 type        = "duration"
 default     = "1500ms"
 min         = "100ms"
-description = "Time between two citizens being replaced; 0 keeps them."
+description = "Time between two citizens being replaced."
+
+[params.replace]
+type        = "bool"
+default     = true
+description = "Replace citizens one by one; false keeps them (a duration cannot be 0)."
 
 [params.colors]
 type        = "enum"
@@ -49,6 +54,11 @@ description = "Start from this seed; the same seed gives the same citizens."
 type        = "bool"
 default     = false
 description = "Show each citizen's code below it."
+
+[params.seeds]
+type        = "bool"
+default     = false
+description = "Write each citizen's seed on its body, to point one out; ?seed= with that number shows it first (only as long as citizen.js does not change)."
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="../theme/theme.js"></script>
@@ -84,7 +94,7 @@ description = "Show each citizen's code below it."
 
   function cell(spec) {
     const fig = document.createElement('figure')
-    fig.append(C.svg(spec, { colors: colors() }))
+    fig.append(C.svg(spec, { colors: colors(), label: P.seeds ? spec.seed : null }))
     if (P.labels) {
       const cap = document.createElement('figcaption')
       cap.textContent = Citizen.encode(spec)
@@ -106,7 +116,7 @@ description = "Show each citizen's code below it."
   grid.style.gridTemplate = `repeat(${rows}, 1fr) / repeat(${cols}, 1fr)`
   for (let i = 0; i < rows * cols; i++) grid.append(cell(nextSpec()))
 
-  if (P.interval > 0) {
+  if (P.replace) {
     setInterval(() => {
       const fig = grid.children[Math.floor(Math.random() * grid.children.length)]
       const old = fig.querySelector('svg')
