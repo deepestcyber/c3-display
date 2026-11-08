@@ -26,6 +26,13 @@ path     = "radar.html"
 duration = "15s"
 uses     = ["radar", "radar_times", "map"]
 
+# Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
+# Runs only where the host configuration allows it (backend = true).
+[backend]
+dir     = "backend"
+command = ["python", "app.py", "{port}"]
+health  = "/health"
+
 # Upstreams for radar.html.
 # Radar frames: every URL names a fixed time (and, for forecasts, the DWD run),
 # so an answer never changes and can be kept long. XML answers are DWD errors.

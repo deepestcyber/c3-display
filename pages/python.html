@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python backend</title>
+<!--
+  Showcase for a deepsplay backend: asks the Python process in backend/app.py once a
+  second for facts about itself (GET /c/<config>/backend/info) and shows them. The
+  values change on every answer, so it is plain that Python runs on the host.
+  Needs [backend] in the manifest and backend = true for the configuration on the host.
+-->
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Shows live data from the repository's Python backend."
+uses = ["theme"]
+
+[params.interval]
+type        = "duration"
+default     = "1s"
+min         = "250ms"
+description = "Time between two requests to the backend."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+<style>
+  .stage { display: grid; place-items: center; }
+  .hero { text-align: center; }
+  .hero .title { font-size: 14vmin; }
+  .hero .sub { font-family: var(--font-mono); font-size: 2.2vmin; }
+  .meta .value { min-width: 6ch; }
+  .pulse { display: inline-block; width: 1.4vmin; height: 1.4vmin; margin-right: 1vmin; border-radius: 50%;
+           background: var(--ink-faint); vertical-align: middle; }
+  .pulse.on { background: var(--accent); box-shadow: 0 0 1.5vmin var(--glow); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="hero rise">
+    <div class="kicker"><span class="pulse" id="pulse"></span>Running on the server</div>
+    <h1 class="title" id="python">Python</h1>
+    <div class="sub" id="where">waiting for the backend…</div>
+  </div>
+</div>
+
+<div class="overlay">
+  <div class="caption plate rise">
+    <div class="kicker">Backend</div>
+    <div class="sub" id="primes">&nbsp;</div>
+  </div>
+  <div class="meta plate br rise" style="animation-delay: 250ms">
+    <div><span class="label">Server time</span><span class="value" id="time">--</span></div>
+    <div><span class="label">Uptime</span><span class="value" id="uptime">--</span></div>
+    <div><span class="label">Requests</span><span class="value" id="requests">--</span></div>
+    <div><span class="label">PID</span><span class="value" id="pid">--</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const el = id => document.getElementById(id)
+  const fmt = new Intl.NumberFormat('en-US')
+  // the configuration's base, as Deepsplay.api builds it, for the backend path
+  const base = location.pathname.match(/^\/c\/[^/]+/)?.[0]
+
+  const uptime = s => {
+    s = Math.floor(s)
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60
+    return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`
+  }
+
+  async function poll() {
+    try {
+      if (!base) throw new Error('not served by deepsplay')
+      const res = await fetch(`${base}/backend/info`, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`answered ${res.status}`)
+      const d = await res.json()
+      el('python').textContent = `${d.implementation} ${d.python}`
+      el('where').textContent = `${d.hostname} · ${d.platform}`
+      el('time').textContent = new Date(d.time).toLocaleTimeString('en-GB')
+      el('uptime').textContent = uptime(d.uptime)
+      el('requests').textContent = fmt.format(d.requests)
+      el('pid').textContent = d.pid
+      el('primes').textContent =
+        `${fmt.format(d.primes.count)} primes below ${fmt.format(d.primes.below)}, counted in ${d.primes.ms} ms`
+      const pulse = el('pulse')
+      pulse.classList.add('on')
+      setTimeout(() => pulse.classList.remove('on'), 300)
+    } catch (e) {
+      el('python').textContent = 'Python'
+      el('where').textContent = `Backend not reachable (${e.message})`
+    }
+  }
+
+  Theme.ready.then(() => {
+    poll()
+    setInterval(poll, P.interval)
+  })
+})()
+</script>
+</body>
+</html>
