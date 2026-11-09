@@ -36,6 +36,10 @@ path     = "40c3/citizens.html"
 path     = "40c3/logos.html"
 
 [[page]]
+path     = "40c3/logo-pool.html"
+duration = "30s"
+
+[[page]]
 path     = "argos.html"
 
 [[page]]
