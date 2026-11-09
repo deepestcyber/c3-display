@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en" data-theme="40c3" data-variant="key">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo pool</title>
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "The 40C3 logos play pool on a glowing table, with the fairy dust rocket as the cue."
+details     = """
+Nine coloured logos (40C3_Logo_0 to _7 and _B) are racked as a diamond at one end of the table,
+the white one (_A) waits on the head line. The rocket of Icons_Deco/Fairydust breaks, with a
+little randomness in rack and aim, so every break is different. Logos roll with friction,
+bounce off the cushions and each other, and vanish in the six pockets.
+
+When everything has stopped, the rocket plays the next shot with the white logo: it picks an
+object logo and a pocket it can reach, with some error. A pocketed white logo comes back on
+the head line, on a free spot. When all coloured logos are gone, the table is racked again.
+
+Fixed to the 40C3 theme in its key colours (green on almost black) with
+<html data-theme data-variant>, so ?theme= and ?variant= are ignored.
+"""
+author      = "kratenko"
+credits     = "Logos and the fairy dust icon from the 40C3 style guide"
+uses = ["theme"]
+
+[params.friction]
+type        = "number"
+default     = 1
+min         = 0.2
+max         = 5
+description = "How quickly rolling logos slow down (1: normal)."
+
+[params.pace]
+type        = "number"
+default     = 1
+min         = 0.25
+max         = 8
+description = "Speed of the whole game (1: normal)."
+
+[params.power]
+type        = "number"
+default     = 1
+min         = 0.3
+max         = 3
+description = "Strength of the shots (1: normal)."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<style>
+  .stage > canvas { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+<script>
+(async () => {
+  'use strict'
+  const P = Deepsplay.params()
+  await Theme.ready
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+  const ASSETS = new URL('../guides/40c3/Assets/', location.href)
+  const loadImage = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src })
+
+  // ---------- assets ----------
+  const COLOURED = ['0', '1', '2', '3', '4', '5', '6', '7', 'B'], WHITE = 'A'
+  const images = {}
+  await Promise.all([...COLOURED, WHITE].map(async n => { images[n] = await loadImage(new URL(`Logos/40C3_Logo_${n}.svg`, ASSETS)) }))
+  const rocket = await loadImage(new URL('Icons_Deco/Fairydust.svg', ASSETS))
+  const ROCKET_ANGLE = -Math.PI / 4      // the rocket in the icon points up and right
+
+  const accent = Theme.token('--accent') || '#75b44b'
+  const glow = Theme.token('--glow') || 'rgba(117,180,75,0.5)'
+  const bg = Theme.token('--bg') || '#001300'
+
+  // ---------- table ----------
+  // Table coordinates: x along the long side (0..L), y across (0..S); mapped to the screen,
+  // turned by 90° on portrait screens.
+  let W, H, dpr, L, S, R, portrait, ox, oy, C, F, pockets, sprites
+  const toScreen = (x, y) => portrait ? [ox + y, oy + L - x] : [ox + x, oy + y]
+  const angleToScreen = a => portrait ? a - Math.PI / 2 : a
+
+  function layout() {
+    dpr = window.devicePixelRatio || 1
+    W = innerWidth; H = innerHeight
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px'
+    portrait = H > W
+    const long = Math.max(W, H), short = Math.min(W, H)
+    // around the felt: cushions (C), then the wooden frame (F) with the pockets in it
+    R = short * 0.033
+    C = R * 0.9
+    F = short * 0.05
+    const margin = Theme.px('--field-margin') + C + F
+    // the playing field: 2:1 if it fits, else what the screen gives
+    S = short - 2 * margin
+    L = Math.min(long - 2 * margin, 2 * S)
+    const fw = portrait ? S : L, fh = portrait ? L : S
+    ox = (W - fw) / 2; oy = (H - fh) / 2
+    const cr = R * 1.6, mr = R * 1.5, cd = C * 0.5, md = C * 0.75
+    pockets = [[-cd, -cd, cr], [L / 2, -md, mr], [L + cd, -cd, cr], [-cd, S + cd, cr], [L / 2, S + md, mr], [L + cd, S + cd, cr]]
+      .map(([x, y, r]) => ({ x, y, r }))
+    buildSprites()
+  }
+
+  // Each logo drawn once with its glow, at the ball size.
+  function buildSprites() {
+    sprites = {}
+    const h = R * 2.1, w = h * 67.65 / 88.42, pad = R
+    for (const [n, img] of Object.entries(images)) {
+      const c = document.createElement('canvas')
+      c.width = Math.ceil((w + 2 * pad) * dpr); c.height = Math.ceil((h + 2 * pad) * dpr)
+      const g = c.getContext('2d')
+      g.scale(dpr, dpr)
+      g.shadowColor = n === 'B' ? 'rgba(176,208,158,0.9)' : glow   // the dark logo needs a light rim
+      g.shadowBlur = R * 0.5
+      g.drawImage(img, pad, pad, w, h)
+      sprites[n] = { c, w: w + 2 * pad, h: h + 2 * pad }
+    }
+  }
+
+  // ---------- balls ----------
+  let balls = []
+  const rnd = (a, b) => a + Math.random() * (b - a)
+
+  function rack() {
+    balls = []
+    const apex = L * 0.72, dx = Math.sqrt(3) * R * 1.01
+    const order = COLOURED.slice().sort(() => Math.random() - 0.5)
+    let k = 0
+    ;[1, 2, 3, 2, 1].forEach((n, row) => {
+      for (let i = 0; i < n; i++) {
+        // a tiny jitter, so no two breaks are the same
+        balls.push({ id: order[k++], x: apex + row * dx + rnd(-0.03, 0.03) * R,
+          y: S / 2 + (i - (n - 1) / 2) * 2.02 * R + rnd(-0.03, 0.03) * R, vx: 0, vy: 0 })
+      }
+    })
+    balls.push({ id: WHITE, x: L * 0.25, y: S / 2 + rnd(-0.15, 0.15) * S, vx: 0, vy: 0, white: true })
+    breakShot = true
+  }
+
+  // ---------- physics ----------
+  const FRICTION = () => S * 0.16 * P.friction        // deceleration, table units per s²
+  const STOP = () => S * 0.01
+
+  function step(dt) {
+    for (const b of balls) {
+      if (b.sinking != null) continue
+      const v = Math.hypot(b.vx, b.vy)
+      if (v > 0) {
+        const nv = Math.max(0, v - FRICTION() * dt) * (1 - 0.06 * dt)
+        b.vx *= nv / v; b.vy *= nv / v
+        if (nv < STOP() * 0.2) { b.vx = 0; b.vy = 0 }
+      }
+      b.x += b.vx * dt; b.y += b.vy * dt
+      // pockets
+      for (const p of pockets) {
+        if (Math.hypot(b.x - p.x, b.y - p.y) < p.r * 0.85) { b.sinking = 0; b.px = p.x; b.py = p.y; break }
+      }
+      if (b.sinking != null) continue
+      // cushions, open at the pockets
+      const nearPocket = pockets.some(p => Math.hypot(b.x - p.x, b.y - p.y) < p.r * 1.6)
+      if (!nearPocket) {
+        if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * 0.8 }
+        if (b.x > L - R) { b.x = L - R; b.vx = -Math.abs(b.vx) * 0.8 }
+        if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * 0.8 }
+        if (b.y > S - R) { b.y = S - R; b.vy = -Math.abs(b.vy) * 0.8 }
+      } else if (b.x < -R || b.x > L + R || b.y < -R || b.y > S + R) {
+        // past the mouth without hitting the middle: into the nearest pocket all the same
+        const p = pockets.reduce((m, q) => (!m || Math.hypot(b.x - q.x, b.y - q.y) < Math.hypot(b.x - m.x, b.y - m.y) ? q : m), null)
+        b.sinking = 0; b.px = p.x; b.py = p.y
+      }
+    }
+    // collisions: equal masses, nearly elastic
+    const live = balls.filter(b => b.sinking == null)
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], b = live[j]
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy)
+      if (d >= 2 * R || d === 0) continue
+      const nx = dx / d, ny = dy / d, push = (2 * R - d) / 2
+      a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push
+      const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny
+      if (rel > 0) {
+        const j2 = rel * 0.96
+        a.vx -= j2 * nx; a.vy -= j2 * ny; b.vx += j2 * nx; b.vy += j2 * ny
+      }
+    }
+  }
+
+  const moving = () => balls.some(b => b.sinking != null || Math.hypot(b.vx, b.vy) > 0)
+
+  // ---------- shots ----------
+  let breakShot = true
+
+  // Is the way from a to b free of other balls (besides `skip`)?
+  function clear(ax, ay, bx, by, skip) {
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy
+    return balls.every(o => {
+      if (skip.includes(o) || o.sinking != null) return true
+      const t = Math.max(0, Math.min(1, ((o.x - ax) * dx + (o.y - ay) * dy) / len2))
+      return Math.hypot(ax + t * dx - o.x, ay + t * dy - o.y) >= 2 * R * 0.98
+    })
+  }
+
+  function planShot() {
+    const white = balls.find(b => b.white)
+    const targets = balls.filter(b => !b.white && b.sinking == null)
+    let best = null
+    if (breakShot) {
+      const front = targets.reduce((m, b) => (!m || b.x < m.x ? b : m), null)
+      const a = Math.atan2(front.y - white.y, front.x - white.x) + rnd(-0.03, 0.03)
+      breakShot = false
+      return { angle: a, speed: S * 4.2 * P.power }
+    }
+    for (const b of targets) for (const p of pockets) {
+      // aim the target at a point inside the pocket
+      const dx = p.x - b.x, dy = p.y - b.y, dist = Math.hypot(dx, dy)
+      const nx = dx / dist, ny = dy / dist
+      const gx = b.x - nx * 2 * R, gy = b.y - ny * 2 * R              // where the white must hit
+      const ax = gx - white.x, ay = gy - white.y, ad = Math.hypot(ax, ay)
+      const cut = (ax * nx + ay * ny) / ad                             // 1: straight, 0: 90°
+      if (cut < 0.35) continue
+      if (!clear(white.x, white.y, gx, gy, [white, b]) || !clear(b.x, b.y, p.x, p.y, [b])) continue
+      const score = cut * 1.5 - (ad + dist) / L * 0.6 + Math.random() * 0.5
+      if (!best || score > best.score) best = { score, angle: Math.atan2(ay, ax), travel: ad + dist / cut }
+    }
+    if (!best) {
+      // nothing makes sense: hit the nearest one somehow
+      const t = targets.reduce((m, b) => (!m || Math.hypot(b.x - white.x, b.y - white.y) < Math.hypot(m.x - white.x, m.y - white.y) ? b : m), null)
+      return { angle: Math.atan2(t.y - white.y, t.x - white.x) + rnd(-0.25, 0.25), speed: S * rnd(1.8, 3) * P.power }
+    }
+    const speed = Math.min(S * 4, Math.sqrt(2 * FRICTION() * best.travel * 1.6) + S * 0.4) * rnd(0.9, 1.25) * P.power
+    return { angle: best.angle + rnd(-0.025, 0.025), speed }
+  }
+
+  // Puts the white logo back on the head line, on a free spot.
+  function respot() {
+    const white = balls.find(b => b.white)
+    let y, tries = 0
+    do { y = rnd(R * 1.5, S - R * 1.5) } while (++tries < 200 && balls.some(b => b !== white && b.sinking == null && Math.hypot(b.x - L * 0.25, b.y - y) < 2.2 * R))
+    Object.assign(white, { x: L * 0.25, y, vx: 0, vy: 0, sinking: undefined, fade: 0 })
+  }
+
+  // ---------- drawing ----------
+  // a polygon in table coordinates
+  function poly(points) {
+    ctx.beginPath()
+    points.forEach(([x, y], i) => { const [sx, sy] = toScreen(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy) })
+    ctx.closePath()
+  }
+
+  function drawTable() {
+    ctx.save()
+    const frame = Theme.token('--accent-dark') || '#234316', cushion = Theme.token('--accent-deep') || '#406c29'
+    const line = Math.max(1, R * 0.12)
+    // the frame: a board around everything, glowing at its outer edge
+    const o = C + F
+    ctx.beginPath()
+    for (const [a, b] of [[-o, o], [-C, C]]) {
+      const pts = [[a, a], [L - a, a], [L - a, S - a], [a, S - a]]
+      pts.forEach(([x, y], i) => { const [sx, sy] = toScreen(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy) })
+      ctx.closePath()
+    }
+    ctx.fillStyle = frame; ctx.fill('evenodd')
+    poly([[-o, -o], [L + o, -o], [L + o, S + o], [-o, S + o]])
+    ctx.lineWidth = line * 1.6; ctx.strokeStyle = accent
+    ctx.shadowColor = glow; ctx.shadowBlur = R * 0.8
+    ctx.stroke(); ctx.shadowBlur = 0
+    // diamonds on the frame
+    ctx.fillStyle = accent
+    const dot = (x, y) => { const [sx, sy] = toScreen(x, y); ctx.beginPath(); ctx.arc(sx, sy, R * 0.12, 0, 2 * Math.PI); ctx.fill() }
+    const mid = -C - F / 2
+    for (let i = 1; i < 8; i++) if (i !== 4) { dot(L * i / 8, mid); dot(L * i / 8, S - mid) }
+    for (let i = 1; i < 4; i++) { dot(mid, S * i / 4); dot(L - mid, S * i / 4) }
+    // cushions: between the pockets, their ends cut back towards the pockets
+    const cg = R * 2.1, mg = R * 1.8, k = C * 0.8
+    const seg = (x1, x2, y, dir) => [[x1, y], [x2, y], [x2 + k, y - dir * C], [x1 - k, y - dir * C]]
+    const segs = [
+      seg(cg, L / 2 - mg, 0, 1), seg(L / 2 + mg, L - cg, 0, 1),
+      seg(cg, L / 2 - mg, S, -1), seg(L / 2 + mg, L - cg, S, -1),
+    ]
+    const side = (y1, y2, x, dir) => [[x, y1], [x, y2], [x - dir * C, y2 + k], [x - dir * C, y1 - k]]
+    segs.push(side(cg, S - cg, 0, 1), side(cg, S - cg, L, -1))
+    for (const p of segs) {
+      poly(p); ctx.fillStyle = cushion; ctx.fill()
+      // the nose of the cushion, where the logos bounce
+      const [[ax, ay], [bx, by]] = p, [sax, say] = toScreen(ax, ay), [sbx, sby] = toScreen(bx, by)
+      ctx.beginPath(); ctx.moveTo(sax, say); ctx.lineTo(sbx, sby)
+      ctx.lineWidth = line; ctx.strokeStyle = accent; ctx.stroke()
+    }
+    // pockets: black holes with a thin rim
+    for (const p of pockets) {
+      const [sx, sy] = toScreen(p.x, p.y)
+      ctx.fillStyle = '#000'
+      ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, 2 * Math.PI); ctx.fill()
+      ctx.lineWidth = line; ctx.strokeStyle = accent; ctx.stroke()
+    }
+    // the head line, faint
+    ctx.globalAlpha = 0.25; ctx.lineWidth = line * 0.6; ctx.strokeStyle = accent
+    const [hx0, hy0] = toScreen(L * 0.25, 0), [hx1, hy1] = toScreen(L * 0.25, S)
+    ctx.beginPath(); ctx.moveTo(hx0, hy0); ctx.lineTo(hx1, hy1); ctx.stroke()
+    ctx.restore()
+  }
+
+  function drawBalls() {
+    for (const b of balls) {
+      let scale = 1, alpha = 1, x = b.x, y = b.y
+      if (b.sinking != null) {
+        // fall into the pocket: first slide quickly to its middle, then shrink there
+        const t = Math.min(1, b.sinking), m = Math.min(1, t * 4)
+        const ease = 1 - (1 - m) * (1 - m)
+        scale = 1 - t * 0.8; alpha = t < 0.5 ? 1 : 1 - (t - 0.5) * 2
+        x = b.x + (b.px - b.x) * ease; y = b.y + (b.py - b.y) * ease
+      }
+      if (b.fade != null && b.fade < 1) alpha *= b.fade
+      const s = sprites[b.id], [sx, sy] = toScreen(x, y)
+      ctx.globalAlpha = alpha
+      ctx.drawImage(s.c, sx - s.w * scale / 2, sy - s.h * scale / 2, s.w * scale, s.h * scale)
+    }
+    ctx.globalAlpha = 1
+  }
+
+  // The rocket behind the white logo, pointing along the shot; `back` pulls it away.
+  // `at`: where the white logo was hit (the rocket stays there while the logo rolls away).
+  function drawCue(angle, back, alpha, at = null) {
+    const white = at || balls.find(b => b.white)
+    if (!white) return
+    const [sx, sy] = toScreen(white.x, white.y)
+    const a = angleToScreen(angle)
+    const size = R * 4.2, gap = R * 1.15 + back
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.translate(sx - Math.cos(a) * (gap + size * 0.35), sy - Math.sin(a) * (gap + size * 0.35))
+    ctx.rotate(a - ROCKET_ANGLE)
+    ctx.shadowColor = glow; ctx.shadowBlur = R * 0.6
+    ctx.drawImage(rocket, -size / 2, -size / 2 * 100.6 / 96.52, size, size * 100.6 / 96.52)
+    ctx.restore()
+  }
+
+  // ---------- game loop ----------
+  // phases: aim (the rocket appears) → pull (draws back) → strike → roll → (respot | rack)
+  let phase = 'pause', phaseT = 0, shot = null
+
+  function setPhase(p) { phase = p; phaseT = 0 }
+
+  function update(dt) {
+    phaseT += dt
+    if (phase === 'roll') {
+      for (let k = 0; k < 6; k++) step(dt / 6)
+      for (const b of balls) if (b.sinking != null) b.sinking += dt * 2.5
+      balls = balls.filter(b => b.sinking == null || b.sinking < 1 || b.white)
+      const white = balls.find(b => b.white)
+      if (white && white.sinking != null && white.sinking >= 1) { white.gone = true }
+      if (!balls.some(b => b.sinking != null && b.sinking < 1) && !balls.some(b => b.sinking == null && Math.hypot(b.vx, b.vy) > 0)) {
+        if (!balls.some(b => !b.white)) { setPhase('done'); return }
+        if (white.gone) { white.gone = false; respot() }
+        setPhase('pause')
+      }
+    } else if (phase === 'pause' && phaseT > 0.6) {
+      shot = planShot(); setPhase('aim')
+    } else if (phase === 'aim' && phaseT > 0.9) {
+      setPhase('pull')
+    } else if (phase === 'pull' && phaseT > 0.7) {
+      setPhase('strike')
+    } else if (phase === 'strike' && phaseT > 0.08) {
+      const white = balls.find(b => b.white)
+      white.vx = Math.cos(shot.angle) * shot.speed; white.vy = Math.sin(shot.angle) * shot.speed
+      shot.at = { x: white.x, y: white.y }
+      setPhase('roll')
+    } else if (phase === 'done' && phaseT > 2) {
+      rack(); setPhase('pause')
+    }
+    for (const b of balls) if (b.fade != null && b.fade < 1) b.fade = Math.min(1, b.fade + dt * 2)
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, W, H)
+    drawTable()
+    drawBalls()
+    const pullMax = R * 1.6 * Math.min(1.5, shot ? shot.speed / (S * 3) : 1)
+    if (phase === 'aim') drawCue(shot.angle, pullMax * 0.1, Math.min(1, phaseT / 0.4))
+    else if (phase === 'pull') drawCue(shot.angle, pullMax * (0.1 + 0.9 * Math.min(1, phaseT / 0.6)), 1)
+    else if (phase === 'strike') drawCue(shot.angle, pullMax * (1 - phaseT / 0.08), 1)
+    else if (phase === 'roll' && phaseT < 0.9) {
+      // no push: a short follow-through where the logo was, then a calm way back, fading
+      const ease = u => u * u * (3 - 2 * u)
+      const back = phaseT < 0.1 ? -R * 0.3 * ease(phaseT / 0.1)
+        : -R * 0.3 + R * 1.3 * ease(Math.min(1, (phaseT - 0.1) / 0.6))
+      drawCue(shot.angle, back, phaseT < 0.4 ? 1 : 1 - (phaseT - 0.4) / 0.5, shot.at)
+    }
+  }
+
+  layout()
+  addEventListener('resize', layout)
+  rack()
+  let last = null
+  function frame(t) {
+    const dt = last === null ? 0 : Math.min(0.05, (t - last) / 1000)
+    last = t
+    update(dt * P.pace)
+    draw()
+    requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+})()
+</script>
+</body>
+</html>
