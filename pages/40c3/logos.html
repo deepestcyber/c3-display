@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en" data-theme="40c3" data-variant="key">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logos</title>
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "A few 40C3 logos drifting over the screen and bouncing off each other and the edges."
+details     = """
+Picks 3 to 9 different logos of the style guide at random (40C3_Logo_0 to _7 and _A, in
+their own colours; _B is dark green and would vanish), places them without overlap and
+lets them move in random directions. They bounce off the screen edges and off each other
+(elastic collisions of circles around the logos).
+
+Fixed to the 40C3 theme in its key colours (green on almost black) with
+<html data-theme data-variant>, so ?theme= and ?variant= are ignored.
+"""
+author      = "kratenko"
+credits     = "Logos from the 40C3 style guide"
+uses = ["theme"]
+
+[params.min]
+type        = "int"
+default     = 3
+min         = 1
+max         = 9
+description = "Fewest logos."
+
+[params.max]
+type        = "int"
+default     = 9
+min         = 1
+max         = 9
+description = "Most logos (there are nine different ones)."
+
+[params.size]
+type        = "number"
+default     = 0.22
+min         = 0.05
+max         = 0.5
+description = "Height of a logo as a share of the screen's shorter side."
+
+[params.speed]
+type        = "number"
+default     = 0.5
+min         = 0
+max         = 2
+description = "Speed in screen heights per second."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<style>
+  #field { position: fixed; inset: var(--field-margin); overflow: hidden; }
+  /* green glow, as on the citizens page */
+  #field img { position: absolute; left: 0; top: 0; will-change: transform;
+               filter: drop-shadow(0 0 1vmin var(--glow)); }
+</style>
+</head>
+<body>
+<div id="field"></div>
+<script>
+(async () => {
+  'use strict'
+  const P = Deepsplay.params()
+  await Theme.ready
+  const LOGOS = ['0', '1', '2', '3', '4', '5', '6', '7', 'A']
+  const url = n => new URL(`../guides/40c3/Assets/Logos/40C3_Logo_${n}.svg`, location.href).href
+  const field = document.getElementById('field')
+  let W = field.clientWidth, H = field.clientHeight
+
+  const lo = Math.min(P.min, P.max), hi = Math.max(P.min, P.max)
+  const count = lo + Math.floor(Math.random() * (hi - lo + 1))
+  const pool = LOGOS.slice(), names = []
+  while (names.length < count && pool.length) names.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0])
+
+  // Each logo is a circle around its box for the physics; all logos have the same size.
+  const aw = 67.65, ah = 88.42                 // their viewBox
+  const lh = Math.min(W, H) * P.size, lw = lh * aw / ah
+  const R = Math.hypot(lw, lh) / 2 * 0.82      // a bit inside the corners: the logos are not boxes
+  const speed = H * P.speed
+
+  // Places without overlap: random tries, then smaller steps of luck.
+  const bodies = []
+  for (const name of names) {
+    let x, y, tries = 0
+    do {
+      x = R + Math.random() * Math.max(0, W - 2 * R)
+      y = R + Math.random() * Math.max(0, H - 2 * R)
+    } while (++tries < 500 && bodies.some(b => Math.hypot(b.x - x, b.y - y) < 2 * R))
+    if (tries >= 500) break                      // the screen is full
+    const a = Math.random() * 2 * Math.PI
+    const el = new Image(lw, lh)
+    el.src = url(name)
+    field.append(el)
+    bodies.push({ el, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed })
+  }
+
+  function step(dt) {
+    for (const b of bodies) {
+      b.x += b.vx * dt; b.y += b.vy * dt
+      // edges
+      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) }
+      if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) }
+      if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) }
+      if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) }
+    }
+    // each other: equal masses, elastic, along the line between the centres
+    for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
+      const a = bodies[i], b = bodies[j]
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy)
+      if (d >= 2 * R || d === 0) continue
+      const nx = dx / d, ny = dy / d
+      // push apart
+      const push = (2 * R - d) / 2
+      a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push
+      // swap the velocity parts along the normal, if they approach
+      const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny
+      if (rel > 0) {
+        a.vx -= rel * nx; a.vy -= rel * ny
+        b.vx += rel * nx; b.vy += rel * ny
+      }
+    }
+  }
+
+  function draw() {
+    for (const b of bodies) b.el.style.transform = `translate(${b.x - lw / 2}px, ${b.y - lh / 2}px)`
+  }
+
+  addEventListener('resize', () => { W = field.clientWidth; H = field.clientHeight })
+
+  let last = null
+  function frame(t) {
+    // small steps, and no catching up after a pause
+    const dt = last === null ? 0 : Math.min(0.05, (t - last) / 1000)
+    last = t
+    for (let k = 0; k < 4; k++) step(dt / 4)
+    draw()
+    requestAnimationFrame(frame)
+  }
+  draw()
+  requestAnimationFrame(frame)
+})()
+</script>
+</body>
+</html>

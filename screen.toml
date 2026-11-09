@@ -33,6 +33,9 @@ path     = "40c3/clock.html"
 path     = "40c3/citizens.html"
 
 [[page]]
+path     = "40c3/logos.html"
+
+[[page]]
 path     = "argos.html"
 
 [[page]]
