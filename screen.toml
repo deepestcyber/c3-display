@@ -36,8 +36,12 @@ path     = "40c3/citizens.html"
 path     = "40c3/logos.html"
 
 [[page]]
-path     = "40c3/logo-pool.html"
-duration = "30s"
+path     = "40c3/logo-pool.html?racks=1"
+duration = "5m"                                # upper limit: ends itself after one rack
+
+[[page]]
+path     = "countdown.html"                    # test page: ends itself after 3 s
+duration = "15s"
 
 [[page]]
 path     = "argos.html"

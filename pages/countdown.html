@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Countdown</title>
+    <script type="application/toml" id="deepsplay-page">
+    description = "Test page for Deepsplay.done(): counts down from 3, then ends its display time."
+    details     = """
+Shows 3, 2, 1 for a second each, then calls Deepsplay.done() and shows "done". On a screen
+the next page follows (at the earliest 2 seconds after this one became visible). Opened on
+its own, nothing happens after "done".
+
+If the loaded deepsplay.js has no done() (an old copy from the browser cache), the page says
+so instead.
+"""
+    author      = "kratenko"
+    </script>
+    <link rel="stylesheet" href="shared/style.css">
+    <script src="/lib/v1/deepsplay.js"></script>
+    <style>
+      h1 { font-size: 40vh; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body style="background: #7c2d12">
+    <h1 id="n">3</h1>
+    <p id="info">deepsplay.js <span id="v"></span></p>
+    <script>
+      const n = document.getElementById('n')
+      const info = document.getElementById('info')
+      document.getElementById('v').textContent = Deepsplay.version
+      let left = 3
+      const tick = setInterval(() => {
+        left -= 1
+        if (left > 0) { n.textContent = left; return }
+        clearInterval(tick)
+        n.textContent = 'done'
+        if (typeof Deepsplay.done === 'function') Deepsplay.done()
+        else info.textContent = `deepsplay.js ${Deepsplay.version} has no done(): old copy from the browser cache?`
+      }, 1000)
+    </script>
+  </body>
+</html>

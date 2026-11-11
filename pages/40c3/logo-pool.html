@@ -15,7 +15,8 @@ bounce off the cushions and each other, and vanish in the six pockets.
 
 When everything has stopped, the rocket plays the next shot with the white logo: it picks an
 object logo and a pocket it can reach, with some error. A pocketed white logo comes back on
-the head line, on a free spot. When all coloured logos are gone, the table is racked again.
+the head line, on a free spot. When all coloured logos are gone, the table is racked again;
+with ?racks=, the page ends its display time after that many racks (Deepsplay.done()).
 
 Fixed to the 40C3 theme in its key colours (green on almost black) with
 <html data-theme data-variant>, so ?theme= and ?variant= are ignored.
@@ -44,6 +45,12 @@ default     = 1
 min         = 0.3
 max         = 3
 description = "Strength of the shots (1: normal)."
+
+[params.racks]
+type        = "int"
+default     = 0
+min         = 0
+description = "Racks to play until the page is done (0: no end)."
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="../theme/theme.js"></script>
@@ -368,7 +375,7 @@ description = "Strength of the shots (1: normal)."
 
   // ---------- game loop ----------
   // phases: aim (the rocket appears) → pull (draws back) → strike → roll → (respot | rack)
-  let phase = 'pause', phaseT = 0, shot = null
+  let phase = 'pause', phaseT = 0, shot = null, racksPlayed = 0
 
   function setPhase(p) { phase = p; phaseT = 0 }
 
@@ -397,7 +404,9 @@ description = "Strength of the shots (1: normal)."
       shot.at = { x: white.x, y: white.y }
       setPhase('roll')
     } else if (phase === 'done' && phaseT > 2) {
-      rack(); setPhase('pause')
+      // the rack is finished: rack again, or end the page after ?racks= racks
+      if (P.racks > 0 && ++racksPlayed >= P.racks) { setPhase('over'); Deepsplay.done() }
+      else { rack(); setPhase('pause') }
     }
     for (const b of balls) if (b.fade != null && b.fade < 1) b.fade = Math.min(1, b.fade + dt * 2)
   }
