@@ -61,6 +61,17 @@ path     = "deep-cyber-38c3.html"
 path = "duolingo.html"
 when = { from = "23:53", until = "00:00:30" }   # overnight
 
+# Someone rang: on all screens when triggered, not in the rotation (deepsplay ADR 32).
+#   curl -X POST -H "Authorization: Bearer $TOKEN" "http://<host>:4000/c/<config>/interrupts/doorbell?who=Ada"
+# The token: the backend's DEEPSPLAY_TOKEN, or the secret named by interrupt_token in the host
+# configuration.
+[[interrupt]]
+name        = "doorbell"
+path        = "doorbell.html"
+duration    = "10s"
+priority    = 10
+description = "Someone is at the door"
+
 # Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
 # Runs only where the host configuration allows it (backend = true).
 [backend]

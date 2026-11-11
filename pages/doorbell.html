@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doorbell</title>
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Someone is at the door: a ringing bell, for the doorbell interrupt."
+details     = """
+Not part of the rotation: shown on all screens when the interrupt "doorbell" is triggered
+(see screen.toml), for its duration or until it is ended with DELETE.
+
+A large bell rings in waves, with rings spreading from it, over "Someone is at the door".
+With ?who=, the text names the visitor; ?message= adds a line below.
+
+Trigger it with
+  curl -X POST -H "Authorization: Bearer $TOKEN" "http://<host>:4000/c/<config>/interrupts/doorbell?who=Ada"
+"""
+author      = "kratenko"
+uses        = ["theme"]
+
+[params.who]
+type        = "string"
+description = "Who is at the door; without it: someone."
+
+[params.message]
+type        = "string"
+description = "An extra line below, e.g. \"Parcel for the workshop\"."
+
+[[variants]]
+label = "With a name and a message"
+query = "who=Ada&message=Parcel%20for%20the%20workshop"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+<style>
+  body { background: var(--bg); overflow: hidden; }
+  .door {
+    position: fixed; inset: var(--margin);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 5vmin; text-align: center;
+  }
+
+  /* the bell with its rings */
+  .bell-wrap { position: relative; width: 38vmin; height: 38vmin; }
+  .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 0.8vmin solid var(--accent); box-shadow: 0 0 2vmin var(--glow);
+    opacity: 0; animation: ring 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  }
+  .ring:nth-child(2) { animation-delay: 0.8s; }
+  .ring:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes ring {
+    0%   { transform: scale(0.55); opacity: 0.9; }
+    100% { transform: scale(1.6);  opacity: 0; }
+  }
+  .bell {
+    position: absolute; inset: 14%;
+    color: var(--accent); filter: drop-shadow(0 0 2vmin var(--glow));
+    transform-origin: 50% 8%;
+    animation: swing 2.4s ease-in-out infinite;
+  }
+  /* a burst of swinging, then a pause, like a pressed button */
+  @keyframes swing {
+    0%   { transform: rotate(0); }
+    5%   { transform: rotate(16deg); }
+    12%  { transform: rotate(-14deg); }
+    19%  { transform: rotate(11deg); }
+    26%  { transform: rotate(-8deg); }
+    33%  { transform: rotate(5deg); }
+    40%  { transform: rotate(-2deg); }
+    47%, 100% { transform: rotate(0); }
+  }
+  .clapper { animation: clap 2.4s ease-in-out infinite; transform-origin: 50px 20px; }
+  @keyframes clap {
+    0%   { transform: translateX(0); }
+    5%   { transform: translateX(-5px); }
+    12%  { transform: translateX(5px); }
+    19%  { transform: translateX(-4px); }
+    26%  { transform: translateX(3px); }
+    33%, 100% { transform: translateX(0); }
+  }
+
+  .title {
+    font-size: 11vmin; line-height: 1;
+    color: var(--ink); text-shadow: 0 0 0.3em var(--glow);
+  }
+  .title b { color: var(--accent); font-weight: inherit; }
+  .message { font-size: 5vmin; color: var(--ink-soft); max-width: 80vw; }
+  .message:empty { display: none; }
+  .since { font-size: var(--fs-meta); color: var(--ink-faint); font-family: var(--font-mono); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring, .bell, .clapper { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="door">
+  <div class="bell-wrap" aria-hidden="true">
+    <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+    <svg class="bell" viewBox="0 0 100 100" fill="currentColor">
+      <circle cx="50" cy="9" r="5"/>
+      <path d="M50 13c-17 0-27 13-27 30v17c0 6-3 11-9 15v4h72v-4c-6-4-9-9-9-15V43c0-17-10-30-27-30z"/>
+      <g class="clapper"><circle cx="50" cy="87" r="8"/></g>
+    </svg>
+  </div>
+  <div class="title rise" id="title">Someone is at the door</div>
+  <div class="message rise" id="message"></div>
+  <div class="since" id="since"></div>
+</div>
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const title = document.getElementById('title')
+  if (P.who) {
+    title.textContent = ''
+    const name = document.createElement('b')
+    name.textContent = P.who
+    title.append(name, ' is at the door')
+  }
+  document.getElementById('message').textContent = P.message || ''
+
+  // How long ago it rang, so a late look still tells.
+  const rang = Date.now()
+  const since = document.getElementById('since')
+  const tick = () => {
+    const s = Math.floor((Date.now() - rang) / 1000)
+    since.textContent = s < 5 ? 'just now' : s < 60 ? `${s} s ago` : `${Math.floor(s / 60)} min ago`
+  }
+  tick()
+  setInterval(tick, 1000)
+})()
+</script>
+</body>
+</html>
