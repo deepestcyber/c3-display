@@ -6,12 +6,18 @@
 <title>Argustos</title>
 <link rel="stylesheet" href="theme/theme.css">
 <script type="application/toml" id="deepsplay-page">
-description = "An eye that opens out of nothing, looks around, and closes into nothing again."
+description = "Eyes that open out of nothing, look around, and close into nothing again."
 details     = """
-A relative of argos.html: the same eye, but without a face. The page starts empty; the eye
+A relative of argos.html: the same eye, but without a face. The page starts empty; an eye
 opens as if from a blink, only the lids have the colour of the background, so it seems to
-open out of nothing. It looks around for a while, closes again and is gone, then the next
-opening begins, with an iris colour from the whole spectrum.
+open out of nothing. It looks around for a while, closes again and is gone. Each opening
+has an iris colour from the whole spectrum.
+
+eyes= sets how many eyes appear in one round. Without random they share a grid and open
+together (one eye: a single large eye). With random=true they come one after another, in
+different sizes and at random places, never overlapping; some close and make room for new
+ones. When the last eye of the round has closed, the page ends with done=true, else the
+next round begins.
 
 The eye is a ball after a schematic eye: iris and pupil turn with it, and the reflection of
 a light sits on the curved cornea, lagging behind the pupil as on a real eye (sources in
@@ -39,7 +45,34 @@ type        = "number"
 default     = 0.6
 min         = 0.1
 max         = 1
-description = "Width of the eye as a share of the screen width (limited by the height)."
+description = "Width of an eye as a share of the screen width (limited by the height); with random, the largest."
+
+[params.eyes]
+type        = "int"
+default     = 1
+min         = 1
+max         = 100
+description = "Number of eyes that appear in one round."
+
+[params.random]
+type        = "bool"
+default     = false
+description = "Eyes in different sizes, at random places, opening one after another."
+
+[params.open]
+type        = "duration"
+default     = "7s"
+min         = "1s"
+description = "Longest time an eye stays open (each stays between 40 % of it and all of it)."
+
+[params.done]
+type        = "bool"
+default     = false
+description = "End the page (Deepsplay.done()) when the last eye of a round has closed, instead of starting the next round."
+
+[[variants]]
+label = "Many eyes, at random"
+query = "eyes=20&random=true"
 </script>
 <script src="/lib/v1/deepsplay.js"></script>
 <script src="theme/theme.js"></script>
@@ -130,7 +163,6 @@ description = "Width of the eye as a share of the screen width (limited by the h
       const side = i % 2 === 0 ? Math.PI : 0
       const a = side + (Math.random() - 0.5) * (Math.random() < 0.7 ? 1.0 : 2.4)
       // walk out from the iris until past the edge of the white, then a bit further: the
-      // vessel comes out from under the lids, its start hidden in the socket
       // vessel comes out from under the lids, its start hidden in the socket; far enough out
       // that it stays hidden when the eye turns all the way (they move by up to SHIFT)
       let edge = limbus
@@ -152,25 +184,25 @@ description = "Width of the eye as a share of the screen width (limited by the h
   }
 
   // ---------- behaviour ----------
-  // blank → opening → open (glances) → closing → blank …, times in seconds
+  // each eye: wait → opening → open (glances) → closing → gone; times in seconds
   const rnd = (a, b) => a + Math.random() * (b - a)
   const ease = u => u * u * (3 - 2 * u)
-  const eye = { phase: 'blank', t: 0, len: 1.2, look: [0, 0], from: [0, 0], to: [0, 0], moveT: 1, next: 1, colours: null }
+  const OPEN_MAX = P.open / 1000
 
-  function enter(phase) {
+  function newEye(cell, wait) {
+    const look = [rnd(-2, 2), rnd(-1, 1)]
+    return { cell, phase: 'wait', t: 0, len: wait, look, from: look, to: look, moveT: 1, next: 1,
+      colours: irisColours(), vessels: makeVessels(P.vessels) }
+  }
+
+  function enter(eye, phase) {
     eye.phase = phase; eye.t = 0
-    if (phase === 'blank') eye.len = rnd(1.0, 2.5)
-    if (phase === 'opening') {
-      eye.len = rnd(0.45, 0.8)
-      eye.colours = irisColours()
-      eye.vessels = makeVessels(P.vessels)
-      eye.look = eye.from = eye.to = [rnd(-2, 2), rnd(-1, 1)]
-    }
-    if (phase === 'open') { eye.len = rnd(3, 7); eye.next = rnd(0.6, 1.6) }
+    if (phase === 'opening') eye.len = rnd(0.45, 0.8)
+    if (phase === 'open') { eye.len = rnd(0.4, 1) * OPEN_MAX; eye.next = rnd(0.6, 1.6) }
     if (phase === 'closing') eye.len = rnd(0.35, 0.6)
   }
 
-  function update(dt) {
+  function updateEye(eye, dt) {
     eye.t += dt
     if (eye.phase === 'open') {
       // glance now and then, with a quick movement
@@ -182,11 +214,12 @@ description = "Width of the eye as a share of the screen width (limited by the h
       const k = 1 - (1 - Math.min(1, eye.moveT / 0.1)) ** 3
       eye.look = [eye.from[0] + (eye.to[0] - eye.from[0]) * k, eye.from[1] + (eye.to[1] - eye.from[1]) * k]
     }
-    if (eye.t >= eye.len) enter({ blank: 'opening', opening: 'open', open: 'closing', closing: 'blank' }[eye.phase])
+    if (eye.phase !== 'gone' && eye.t >= eye.len)
+      enter(eye, { wait: 'opening', opening: 'open', open: 'closing', closing: 'gone' }[eye.phase])
   }
 
   // 0 shut (invisible) .. 1 open
-  function openness() {
+  function openness(eye) {
     const u = Math.min(1, eye.t / eye.len)
     if (eye.phase === 'opening') return ease(u)
     if (eye.phase === 'open') return 1
@@ -194,9 +227,64 @@ description = "Width of the eye as a share of the screen width (limited by the h
     return 0
   }
 
+  // ---------- rounds ----------
+  // A round shows P.eyes eyes. Fixed: all in a grid, opening together after a pause.
+  // Random: one after another at free places; when none is free, the next waits.
+  let eyes = [], toCome = 0, spawnIn = 0, ended = false
+
+  function startRound() {
+    eyes = []; ended = false
+    const pause = rnd(1.0, 2.5)
+    if (P.random) { toCome = P.eyes; spawnIn = pause }
+    else { toCome = 0; eyes = gridCells(P.eyes).map(cell => newEye(cell, pause)) }
+  }
+
+  // A random place for a random size that keeps clear of the other eyes, or null.
+  function freeCell() {
+    const m = Theme.px('--margin')
+    // the largest eye as in single mode, smaller ones down to a quarter of it; with many
+    // eyes all a bit smaller, so they find room
+    const crowd = Math.min(1, 1.6 / Math.sqrt(Math.min(P.eyes, 8)))
+    const sMax = Math.min((W - 2 * m) * P.size / EW, (H - 2 * m) * 0.8 / EH) * crowd
+    for (let tries = 0; tries < 60; tries++) {
+      const s = sMax * rnd(0.25, 1)
+      const w = EW * s, h = EH * s
+      if (w > W - 2 * m || h > H - 2 * m) continue
+      const x = rnd(m, W - m - w), y = rnd(m, H - m - h)
+      // never overlapping, never too close: a gap of half the larger eye's height
+      const clear = eyes.every(e => {
+        if (e.phase === 'gone') return true
+        const c = e.cell, g = 0.5 * Math.max(h, EH * c.s)
+        return x + w + g < c.x || c.x + EW * c.s + g < x || y + h + g < c.y || c.y + EH * c.s + g < y
+      })
+      if (clear) return { x, y, s }
+    }
+    return null
+  }
+
+  function update(dt) {
+    for (const e of eyes) updateEye(e, dt)
+    eyes = eyes.filter(e => e.phase !== 'gone')
+    if (toCome > 0) {
+      spawnIn -= dt
+      if (spawnIn <= 0) {
+        const cell = freeCell()
+        if (cell) {
+          const e = newEye(cell, 0); enter(e, 'opening'); eyes.push(e)
+          toCome--; spawnIn = rnd(0.3, 1.4)
+        } else spawnIn = 0.4                     // full: try again soon
+      }
+    }
+    if (toCome === 0 && eyes.length === 0 && !ended) {
+      ended = true
+      if (P.done && Deepsplay.done) Deepsplay.done()
+      startRound()                               // repeats; with done, only if the screen stays
+    }
+  }
+
   // ---------- drawing ----------
-  function drawEye() {
-    const o = openness()
+  function drawEye(eye) {
+    const o = openness(eye)
     if (o <= 0) return
     // the lids part from the line where they meet; both lids are the background
     const top = SHUT_C + (TOP_C - SHUT_C) * o, bottom = SHUT_C + (BOTTOM_C - SHUT_C) * o
@@ -255,19 +343,44 @@ description = "Width of the eye as a share of the screen width (limited by the h
     ctx.restore()
   }
 
-  let W, H, dpr, cell
+  let W, H, dpr
+  // Cells for n eyes in a grid that fits the screen (one eye: the large one in the middle).
+  function gridCells(n) {
+    const m = Theme.px('--margin')
+    if (n === 1) {
+      const s = Math.min(W * P.size / EW, H * 0.8 / EH)
+      return [{ x: (W - EW * s) / 2, y: (H - EH * s) / 2, s }]
+    }
+    const area = { x: m, y: m, w: W - 2 * m, h: H - 2 * m }, gap = 0.35
+    let best = null
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols)
+      const s = Math.min(area.w / (cols * EW + (cols - 1) * gap * EH), area.h / (rows * EH + (rows - 1) * gap * EH))
+      if (!best || s > best.s) best = { cols, rows, s }
+    }
+    const { cols, rows, s } = best
+    const gw = cols * EW * s + (cols - 1) * gap * EH * s, gh = rows * EH * s + (rows - 1) * gap * EH * s
+    const x0 = area.x + (area.w - gw) / 2, y0 = area.y + (area.h - gh) / 2
+    const cells = []
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / cols), c = i % cols
+      const inRow = r === rows - 1 ? n - r * cols : cols
+      const off = (cols - inRow) * (EW + gap * EH) * s / 2
+      cells.push({ x: x0 + off + c * (EW + gap * EH) * s, y: y0 + r * (EH + gap * EH) * s, s })
+    }
+    return cells
+  }
+
   function layout() {
     dpr = window.devicePixelRatio || 1
     W = innerWidth; H = innerHeight
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
-    const s = Math.min(W * P.size / EW, H * 0.8 / EH)
-    cell = { x: (W - EW * s) / 2, y: (H - EH * s) / 2, s }
   }
 
   Theme.ready.then(() => {
     layout()
-    addEventListener('resize', layout)
-    enter('blank')
+    addEventListener('resize', () => { layout(); startRound() })
+    startRound()
     let last = null
     function frame(now) {
       const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000)
@@ -275,8 +388,10 @@ description = "Width of the eye as a share of the screen width (limited by the h
       update(dt * P.speed)
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.setTransform(cell.s * dpr, 0, 0, cell.s * dpr, cell.x * dpr, cell.y * dpr)
-      drawEye()
+      for (const e of eyes) {
+        ctx.setTransform(e.cell.s * dpr, 0, 0, e.cell.s * dpr, e.cell.x * dpr, e.cell.y * dpr)
+        drawEye(e)
+      }
       requestAnimationFrame(frame)
     }
     requestAnimationFrame(frame)
