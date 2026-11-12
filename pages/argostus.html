@@ -49,6 +49,20 @@ description = "Width of the eye as a share of the screen width (limited by the h
   const TOP_C = 0.17, BOTTOM_C = 10.83              // control points of the open lids
   const SHUT_C = 7.6                                // where both lids meet when closed
   const IRIS = [8, 5], IRIS_R = 3.9, PUPIL_R = 1.9
+  // A schematic eye (Gullstrand / Le Grand) in drawing units, the iris (6 mm radius) being
+  // IRIS_R: centre of rotation 13.5 mm behind the front of the cornea, cornea radius 7.8 mm,
+  // so its centre 5.7 mm before the centre of rotation; pupil ~3 mm behind the front; the
+  // cornea ends at the limbus, ~6 mm off its axis; the white of the eye has radius ~12 mm.
+  // With these, the reflection of a light next to the viewer moves 0.08 mm per degree
+  // against the pupil: 12°/mm, the measured Hirschberg ratio.
+  const MM = IRIS_R / 6
+  const EYE = { pupil: 10.5 * MM, cornea: 5.7 * MM, corneaR: 7.8 * MM, scleraR: 12 * MM,
+    capAngle: Math.asin(6 / 7.8) }
+  // The light: above and to the right of the viewer. HALF is halfway between the directions to
+  // the light and to the viewer (both far away); a straight-looking eye shows the reflection
+  // at corneaR * HALF from the cornea's centre.
+  const LIGHT = [0.48, -0.48, 0.73]
+  const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], n = Math.hypot(...v); return v.map(c => c / n) })()
   const RIM = '#755f43', RIM_SOFT = '#271f16', WHITE = '#d8d8d8'
   const IRISES = [
     { a: '#006dcc', o: '#02243d' },   // blue
@@ -126,12 +140,29 @@ description = "Width of the eye as a share of the screen width (limited by the h
     ctx.clip(slit)
     ctx.fillStyle = WHITE
     ctx.fillRect(0, 0, EW, EH)
-    ctx.fillStyle = colours.a
-    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, IRIS_R, 0, 2 * Math.PI); ctx.fill()
-    ctx.fillStyle = colours.o
-    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, PUPIL_R, 0, 2 * Math.PI); ctx.fill()
+    // the eye as a ball turned by the gaze g (unit vector, z towards the viewer)
+    const gx = dx / EYE.pupil, gy = dy / EYE.pupil, gz = Math.sqrt(Math.max(0, 1 - gx * gx - gy * gy))
+    // iris and pupil are discs facing g: seen from the front they are ellipses, shortened
+    // by gz along the direction the eye turns to
+    const turn = Math.atan2(gy, gx)
+    const disc = (r, colour) => {
+      ctx.fillStyle = colour
+      ctx.beginPath(); ctx.ellipse(IRIS[0] + dx, IRIS[1] + dy, Math.max(0.01, r * gz), r, turn, 0, 2 * Math.PI); ctx.fill()
+    }
+    disc(IRIS_R, colours.a)
+    disc(PUPIL_R, colours.o)
+    // The reflection of the light on the cornea (a mirror sphere): it sits where the surface
+    // faces halfway between light and viewer, HALF. Its centre moves with the eye, but the
+    // reflection only moves with that centre, which is nearer the centre of rotation than
+    // the pupil, so it lags behind the pupil (Hirschberg ratio ~12°/mm).
+    let rx = IRIS[0] + EYE.cornea * gx + EYE.corneaR * HALF[0], ry = IRIS[1] + EYE.cornea * gy + EYE.corneaR * HALF[1]
+    // past the edge of the cornea it is the white of the eye that reflects, a larger sphere
+    // around the centre of rotation
+    if (gx * HALF[0] + gy * HALF[1] + gz * HALF[2] < Math.cos(EYE.capAngle)) {
+      rx = IRIS[0] + EYE.scleraR * HALF[0]; ry = IRIS[1] + EYE.scleraR * HALF[1]
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.55)'
-    ctx.beginPath(); ctx.arc(IRIS[0] + dx + 1.3, IRIS[1] + dy - 1.3, 0.55, 0, 2 * Math.PI); ctx.fill()
+    ctx.beginPath(); ctx.arc(rx, ry, 0.55, 0, 2 * Math.PI); ctx.fill()
     ctx.restore()
   }
 
