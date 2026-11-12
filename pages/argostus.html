@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argostus</title>
+<link rel="stylesheet" href="theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "An eye that opens out of nothing, looks around, and closes into nothing again."
+details     = """
+A relative of argos.html: the same eye, but without a face. The page starts empty; the eye
+opens as if from a blink, only the lids have the colour of the background, so it seems to
+open out of nothing. It looks around for a while, closes again and is gone, then the next
+opening begins.
+"""
+author      = "kratenko"
+uses = ["theme"]
+
+[params.speed]
+type        = "number"
+default     = 1
+min         = 0.1
+max         = 10
+description = "Factor on the speed of everything."
+
+[params.size]
+type        = "number"
+default     = 0.6
+min         = 0.1
+max         = 1
+description = "Width of the eye as a share of the screen width (limited by the height)."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="theme/theme.js"></script>
+</head>
+<body>
+<div class="stage"><canvas id="c"></canvas></div>
+
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const canvas = document.getElementById('c')
+  const ctx = canvas.getContext('2d')
+
+  // ---------- the eye, in argos' units: 16 wide, 11 high ----------
+  const EW = 16, EH = 11
+  const LEFT = [0.6, 5.5], RIGHT = [15.4, 5.5]     // corners of the eye
+  const TOP_C = 0.17, BOTTOM_C = 10.83              // control points of the open lids
+  const SHUT_C = 7.6                                // where both lids meet when closed
+  const IRIS = [8, 5], IRIS_R = 3.9, PUPIL_R = 1.9
+  const RIM = '#755f43', RIM_SOFT = '#271f16', WHITE = '#d8d8d8'
+  const IRISES = [
+    { a: '#006dcc', o: '#02243d' },   // blue
+    { a: '#02bb39', o: '#013d09' },   // green
+    { a: '#acbc01', o: '#3b3c00' },   // yellow
+    { a: '#b55103', o: '#3c1601' },   // red
+  ]
+
+  // Curve between the corners whose control points sit at height c.
+  const curve = (path, c, reverse) => {
+    const [a, b] = reverse ? [RIGHT, LEFT] : [LEFT, RIGHT]
+    path.bezierCurveTo(a[0] + (b[0] - a[0]) * 0.2, c, a[0] + (b[0] - a[0]) * 0.8, c, b[0], b[1])
+  }
+
+  // ---------- behaviour ----------
+  // blank → opening → open (glances) → closing → blank …, times in seconds
+  const rnd = (a, b) => a + Math.random() * (b - a)
+  const ease = u => u * u * (3 - 2 * u)
+  const eye = { phase: 'blank', t: 0, len: 1.2, look: [0, 0], from: [0, 0], to: [0, 0], moveT: 1, next: 1, colour: 0 }
+
+  function enter(phase) {
+    eye.phase = phase; eye.t = 0
+    if (phase === 'blank') eye.len = rnd(1.0, 2.5)
+    if (phase === 'opening') {
+      eye.len = rnd(0.45, 0.8)
+      eye.colour = Math.floor(Math.random() * IRISES.length)
+      eye.look = eye.from = eye.to = [rnd(-2, 2), rnd(-1, 1)]
+    }
+    if (phase === 'open') { eye.len = rnd(3, 7); eye.next = rnd(0.6, 1.6) }
+    if (phase === 'closing') eye.len = rnd(0.35, 0.6)
+  }
+
+  function update(dt) {
+    eye.t += dt
+    if (eye.phase === 'open') {
+      // glance now and then, with a quick movement
+      eye.moveT += dt
+      if (eye.t >= eye.next) {
+        eye.from = eye.look; eye.to = [rnd(-3, 3), rnd(-2, 2)]; eye.moveT = 0
+        eye.next = eye.t + rnd(0.8, 2.2)
+      }
+      const k = 1 - (1 - Math.min(1, eye.moveT / 0.1)) ** 3
+      eye.look = [eye.from[0] + (eye.to[0] - eye.from[0]) * k, eye.from[1] + (eye.to[1] - eye.from[1]) * k]
+    }
+    if (eye.t >= eye.len) enter({ blank: 'opening', opening: 'open', open: 'closing', closing: 'blank' }[eye.phase])
+  }
+
+  // 0 shut (invisible) .. 1 open
+  function openness() {
+    const u = Math.min(1, eye.t / eye.len)
+    if (eye.phase === 'opening') return ease(u)
+    if (eye.phase === 'open') return 1
+    if (eye.phase === 'closing') return 1 - u * u
+    return 0
+  }
+
+  // ---------- drawing ----------
+  function drawEye() {
+    const o = openness()
+    if (o <= 0) return
+    // the lids part from the line where they meet; both lids are the background
+    const top = SHUT_C + (TOP_C - SHUT_C) * o, bottom = SHUT_C + (BOTTOM_C - SHUT_C) * o
+    const slit = new Path2D()
+    slit.moveTo(...LEFT); curve(slit, top); curve(slit, bottom, true); slit.closePath()
+    const [dx, dy] = eye.look, colours = IRISES[eye.colour]
+
+    // the rim first, the eye over it: only the rim's outer half shows, the slit stays clear;
+    // it grows with the opening, so a closed eye leaves nothing behind
+    const w = Math.min(1, o * 3)
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = RIM_SOFT; ctx.lineWidth = 2.2 * w; ctx.stroke(slit)
+    ctx.strokeStyle = RIM; ctx.lineWidth = 1.2 * w; ctx.stroke(slit)
+
+    ctx.save()
+    ctx.clip(slit)
+    ctx.fillStyle = WHITE
+    ctx.fillRect(0, 0, EW, EH)
+    ctx.fillStyle = colours.a
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, IRIS_R, 0, 2 * Math.PI); ctx.fill()
+    ctx.fillStyle = colours.o
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx, IRIS[1] + dy, PUPIL_R, 0, 2 * Math.PI); ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.beginPath(); ctx.arc(IRIS[0] + dx + 1.3, IRIS[1] + dy - 1.3, 0.55, 0, 2 * Math.PI); ctx.fill()
+    ctx.restore()
+  }
+
+  let W, H, dpr, cell
+  function layout() {
+    dpr = window.devicePixelRatio || 1
+    W = innerWidth; H = innerHeight
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
+    const s = Math.min(W * P.size / EW, H * 0.8 / EH)
+    cell = { x: (W - EW * s) / 2, y: (H - EH * s) / 2, s }
+  }
+
+  Theme.ready.then(() => {
+    layout()
+    addEventListener('resize', layout)
+    enter('blank')
+    let last = null
+    function frame(now) {
+      const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000)
+      last = now
+      update(dt * P.speed)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.setTransform(cell.s * dpr, 0, 0, cell.s * dpr, cell.x * dpr, cell.y * dpr)
+      drawEye()
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
+})()
+</script>
+</body>
+</html>
