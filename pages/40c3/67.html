@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="40c3" data-variant="key">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Six seven</title>
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "Mona does the 6-7 gesture, in binary."
+details     = """
+Mona, the citizen from the 40C3 style guide, in the middle of the screen; 0b110 to her left,
+0b111 to her right, going up and down in turn as if she weighed them in her hands.
+
+Fixed to the 40C3 theme in its key colours (green on almost black) with
+<html data-theme data-variant>, so ?theme= and ?variant= are ignored.
+"""
+author      = "kratenko"
+credits     = "Mona from the 40C3 style guide"
+uses = ["theme"]
+
+[params.tempo]
+type        = "duration"
+default     = "700ms"
+min         = "200ms"
+description = "Time for one up and down of the hands."
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<style>
+  .scene {
+    position: fixed; inset: 0;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: end;
+  }
+  .mona {
+    grid-column: 2; display: block;
+    height: 72vh; max-width: 60vw; object-fit: contain;
+    /* a bit lower than the middle */
+    margin-bottom: 11vh;
+    filter: drop-shadow(0 0 1.2vmin var(--glow));
+    /* her face sits left in the picture: shift her so the face is near the middle (the
+       numbers keep their places, a transform does not move the grid) */
+    transform: translateX(9.5%);
+  }
+  .hand {
+    align-self: end; margin-bottom: 33vh;
+    font-family: var(--font-mono); font-size: 11vmin; font-weight: 700;
+    color: var(--accent); text-shadow: 0 0 1.5vmin var(--glow);
+    animation: weigh var(--tempo, 700ms) ease-in-out infinite;
+  }
+  .hand.six { justify-self: end; margin-right: 0.5vw; }
+  .hand.seven { justify-self: start; margin-left: 3vw; animation-delay: calc(var(--tempo, 700ms) / -2); }
+  /* palms up, one hand goes up while the other goes down */
+  /* tilted as if turning around an axis near Mona: the outer end swings further */
+  @keyframes weigh {
+    0%, 100% { transform: translateY(-5vh) rotate(3deg); }
+    50%      { transform: translateY(5vh) rotate(-3deg); }
+  }
+  .hand.seven { animation-name: weigh-r; }
+  @keyframes weigh-r {
+    0%, 100% { transform: translateY(-5vh) rotate(-3deg); }
+    50%      { transform: translateY(5vh) rotate(3deg); }
+  }
+  /* narrow screens: Mona smaller and in the middle, the numbers close beside her */
+  @media (orientation: portrait) {
+    .scene { align-items: center; }
+    .mona { height: auto; width: 46vw; max-width: none; margin: 7vh 0 0; }
+    .hand { font-size: 5.6vmin; margin: 19vh 0 0; align-self: center; }
+    .hand.six { margin-right: 1.5vw; }
+    .hand.seven { margin-left: 1.5vw; }
+  }
+</style>
+</head>
+<body>
+<div class="scene">
+  <div class="hand six">0b110</div>
+  <img class="mona" src="../guides/40c3/Assets/Citizens/Mona.svg" alt="Mona">
+  <div class="hand seven">0b111</div>
+</div>
+<script>
+  document.documentElement.style.setProperty('--tempo', `${Deepsplay.params().tempo}ms`)
+</script>
+</body>
+</html>
