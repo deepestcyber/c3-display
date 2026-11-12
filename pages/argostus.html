@@ -27,6 +27,13 @@ min         = 0.1
 max         = 10
 description = "Factor on the speed of everything."
 
+[params.vessels]
+type        = "number"
+default     = 0.5
+min         = 0
+max         = 1
+description = "Blood vessels in the white of the eye: 0 none, 1 a bloodshot eye."
+
 [params.size]
 type        = "number"
 default     = 0.6
@@ -86,6 +93,58 @@ description = "Width of the eye as a share of the screen width (limited by the h
       o: `hsl(${h.toFixed(0)} ${sat.toFixed(0)}% 12%)` }
   }
 
+  // Blood vessels: from the corners of the eye towards the iris, thinning and branching, a
+  // little wavy. Each is a list of points with a width; positions on the white of the eye.
+  const VESSEL_SHIFT = 0.6          // vessels move with the eye, a bit less than the iris
+  function makeVessels(amount) {
+    const out = []
+    if (amount <= 0) return out
+    // the fully open eye, to find where the white ends
+    const open = new Path2D()
+    open.moveTo(...LEFT); curve(open, TOP_C); curve(open, BOTTOM_C, true); open.closePath()
+    const probe = document.createElement('canvas').getContext('2d')
+    const inside = (x, y) => probe.isPointInPath(open, x, y)
+    const limbus = IRIS_R + 0.35                       // vessels fade out before the iris
+    const SHIFT = Math.hypot(3, 2) * VESSEL_SHIFT        // farthest the eye moves them
+    const grow = (x, y, angle, width, length, depth) => {
+      const pts = [[x, y, width]]
+      const step = 0.3, n = Math.max(3, Math.round(length / step))
+      for (let i = 1; i <= n; i++) {
+        // wander, with a slight pull towards the iris
+        const home = Math.atan2(IRIS[1] - y, IRIS[0] - x)
+        let d = home - angle; d = Math.atan2(Math.sin(d), Math.cos(d))
+        angle += (Math.random() - 0.5) * 0.7 + d * 0.08
+        x += Math.cos(angle) * step; y += Math.sin(angle) * step
+        if (Math.hypot(x - IRIS[0], y - IRIS[1]) < limbus) break
+        const w = width * (1 - i / (n + 1))
+        pts.push([x, y, w])
+        if (depth < 2 && i > 2 && Math.random() < 0.16)
+          grow(x, y, angle + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6), w * 0.7,
+            (n - i) * step * (0.4 + Math.random() * 0.4), depth + 1)
+      }
+      if (pts.length > 1) out.push(pts)
+    }
+    const count = Math.round(3 + amount * 9)
+    for (let i = 0; i < count; i++) {
+      // a direction from the iris: mostly towards the corners, some up or down under the lids
+      const side = i % 2 === 0 ? Math.PI : 0
+      const a = side + (Math.random() - 0.5) * (Math.random() < 0.7 ? 1.0 : 2.4)
+      // walk out from the iris until past the edge of the white, then a bit further: the
+      // vessel comes out from under the lids, its start hidden in the socket
+      // vessel comes out from under the lids, its start hidden in the socket; far enough out
+      // that it stays hidden when the eye turns all the way (they move by up to SHIFT)
+      let edge = limbus
+      while (edge < 12 && inside(IRIS[0] + Math.cos(a) * edge, IRIS[1] + Math.sin(a) * edge)) edge += 0.1
+      const r = edge + SHIFT + 0.4 + Math.random() * 0.6
+      const x = IRIS[0] + Math.cos(a) * r, y = IRIS[1] + Math.sin(a) * r
+      // towards the iris, but not all the way: most end on the white
+      const length = (r - edge) + (edge - limbus) * (0.55 + Math.random() * 0.5)
+      grow(x, y, a + Math.PI + (Math.random() - 0.5) * 0.5, 0.13 + Math.random() * 0.1 * (0.5 + amount), length, 0)
+    }
+    return out
+  }
+
+
   // Curve between the corners whose control points sit at height c.
   const curve = (path, c, reverse) => {
     const [a, b] = reverse ? [RIGHT, LEFT] : [LEFT, RIGHT]
@@ -104,6 +163,7 @@ description = "Width of the eye as a share of the screen width (limited by the h
     if (phase === 'opening') {
       eye.len = rnd(0.45, 0.8)
       eye.colours = irisColours()
+      eye.vessels = makeVessels(P.vessels)
       eye.look = eye.from = eye.to = [rnd(-2, 2), rnd(-1, 1)]
     }
     if (phase === 'open') { eye.len = rnd(3, 7); eye.next = rnd(0.6, 1.6) }
@@ -155,6 +215,20 @@ description = "Width of the eye as a share of the screen width (limited by the h
     ctx.clip(slit)
     ctx.fillStyle = WHITE
     ctx.fillRect(0, 0, EW, EH)
+    // the vessels sit on the white of the ball and turn with it, a little less than the iris
+    if (eye.vessels && eye.vessels.length) {
+      ctx.save()
+      ctx.translate(dx * VESSEL_SHIFT, dy * VESSEL_SHIFT)
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+      // red mixed into the white beforehand: overlapping segments must not darken
+      const k = 0.45 + 0.4 * P.vessels, mix = (r, w) => Math.round(w + (r - w) * k)
+      ctx.strokeStyle = `rgb(${mix(168, 216)}, ${mix(28, 216)}, ${mix(32, 216)})`
+      for (const pts of eye.vessels) for (let i = 1; i < pts.length; i++) {
+        ctx.lineWidth = pts[i - 1][2]
+        ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke()
+      }
+      ctx.restore()
+    }
     // the eye as a ball turned by the gaze g (unit vector, z towards the viewer)
     const gx = dx / EYE.pupil, gy = dy / EYE.pupil, gz = Math.sqrt(Math.max(0, 1 - gx * gx - gy * gy))
     // iris and pupil are discs facing g: seen from the front they are ellipses, shortened
