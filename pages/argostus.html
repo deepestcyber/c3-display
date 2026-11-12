@@ -11,7 +11,11 @@ details     = """
 A relative of argos.html: the same eye, but without a face. The page starts empty; the eye
 opens as if from a blink, only the lids have the colour of the background, so it seems to
 open out of nothing. It looks around for a while, closes again and is gone, then the next
-opening begins.
+opening begins, with an iris colour from the whole spectrum.
+
+The eye is a ball after a schematic eye: iris and pupil turn with it, and the reflection of
+a light sits on the curved cornea, lagging behind the pupil as on a real eye (sources in
+the code).
 """
 author      = "kratenko"
 uses = ["theme"]
@@ -55,6 +59,16 @@ description = "Width of the eye as a share of the screen width (limited by the h
   // cornea ends at the limbus, ~6 mm off its axis; the white of the eye has radius ~12 mm.
   // With these, the reflection of a light next to the viewer moves 0.08 mm per degree
   // against the pupil: 12°/mm, the measured Hirschberg ratio.
+  // Sources (looked up 2026-11-12):
+  // - spherical cornea as a mirror, reflection where the surface faces halfway between light
+  //   and camera, cornea centre on the eye's axis (gaze tracking):
+  //   https://proceedings.cmbes.ca/index.php/proceedings/article/download/600/593/1195
+  //   https://patentsgazette.uspto.gov/week24/OG/html/1535-3/US12329456-20250617.html
+  // - Hirschberg ratio, measured ~12-13°/mm (older clinical value 7-8°/mm):
+  //   https://forschung.kssg.ch/en/publikationen/4109-fixation-free-assessment-of-the-hirschberg-ratio
+  //   https://www.jstage.jst.go.jp/article/jorthoptic/38/0/38_0_203/_article
+  //   https://aao.org/image/hirschberg-corneal-reflex-test-2
+  // - schematic eye dimensions (Gullstrand / Le Grand): textbook values, not looked up.
   const MM = IRIS_R / 6
   const EYE = { pupil: 10.5 * MM, cornea: 5.7 * MM, corneaR: 7.8 * MM, scleraR: 12 * MM,
     capAngle: Math.asin(6 / 7.8) }
@@ -64,12 +78,13 @@ description = "Width of the eye as a share of the screen width (limited by the h
   const LIGHT = [0.48, -0.48, 0.73]
   const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], n = Math.hypot(...v); return v.map(c => c / n) })()
   const RIM = '#755f43', RIM_SOFT = '#271f16', WHITE = '#d8d8d8'
-  const IRISES = [
-    { a: '#006dcc', o: '#02243d' },   // blue
-    { a: '#02bb39', o: '#013d09' },   // green
-    { a: '#acbc01', o: '#3b3c00' },   // yellow
-    { a: '#b55103', o: '#3c1601' },   // red
-  ]
+  // An iris colour from the whole spectrum, with a dark pupil of the same hue, in the
+  // brightness of argos' four colours.
+  const irisColours = () => {
+    const h = Math.random() * 360, sat = 80 + Math.random() * 20
+    return { a: `hsl(${h.toFixed(0)} ${sat.toFixed(0)}% ${(36 + Math.random() * 10).toFixed(0)}%)`,
+      o: `hsl(${h.toFixed(0)} ${sat.toFixed(0)}% 12%)` }
+  }
 
   // Curve between the corners whose control points sit at height c.
   const curve = (path, c, reverse) => {
@@ -81,14 +96,14 @@ description = "Width of the eye as a share of the screen width (limited by the h
   // blank → opening → open (glances) → closing → blank …, times in seconds
   const rnd = (a, b) => a + Math.random() * (b - a)
   const ease = u => u * u * (3 - 2 * u)
-  const eye = { phase: 'blank', t: 0, len: 1.2, look: [0, 0], from: [0, 0], to: [0, 0], moveT: 1, next: 1, colour: 0 }
+  const eye = { phase: 'blank', t: 0, len: 1.2, look: [0, 0], from: [0, 0], to: [0, 0], moveT: 1, next: 1, colours: null }
 
   function enter(phase) {
     eye.phase = phase; eye.t = 0
     if (phase === 'blank') eye.len = rnd(1.0, 2.5)
     if (phase === 'opening') {
       eye.len = rnd(0.45, 0.8)
-      eye.colour = Math.floor(Math.random() * IRISES.length)
+      eye.colours = irisColours()
       eye.look = eye.from = eye.to = [rnd(-2, 2), rnd(-1, 1)]
     }
     if (phase === 'open') { eye.len = rnd(3, 7); eye.next = rnd(0.6, 1.6) }
@@ -127,7 +142,7 @@ description = "Width of the eye as a share of the screen width (limited by the h
     const top = SHUT_C + (TOP_C - SHUT_C) * o, bottom = SHUT_C + (BOTTOM_C - SHUT_C) * o
     const slit = new Path2D()
     slit.moveTo(...LEFT); curve(slit, top); curve(slit, bottom, true); slit.closePath()
-    const [dx, dy] = eye.look, colours = IRISES[eye.colour]
+    const [dx, dy] = eye.look, colours = eye.colours
 
     // the rim first, the eye over it: only the rim's outer half shows, the slit stays clear;
     // it grows with the opening, so a closed eye leaves nothing behind
