@@ -70,6 +70,11 @@ type        = "bool"
 default     = false
 description = "End the page (Deepsplay.done()) when the last eye of a round has closed, instead of starting the next round."
 
+[params.coordinated]
+type        = "bool"
+default     = false
+description = "All eyes look at the same spot in the room, which wanders around in 3D, in front of the screen."
+
 [[variants]]
 label = "Many eyes, at random"
 query = "eyes=20&random=true"
@@ -190,7 +195,7 @@ query = "eyes=20&random=true"
   const OPEN_MAX = P.open / 1000
 
   function newEye(cell, wait) {
-    const look = [rnd(-2, 2), rnd(-1, 1)]
+    const look = P.coordinated ? lookAt(cell) : [rnd(-2, 2), rnd(-1, 1)]
     return { cell, phase: 'wait', t: 0, len: wait, look, from: look, to: look, moveT: 1, next: 1,
       colours: irisColours(), vessels: makeVessels(P.vessels) }
   }
@@ -208,7 +213,7 @@ query = "eyes=20&random=true"
       // glance now and then, with a quick movement
       eye.moveT += dt
       if (eye.t >= eye.next) {
-        eye.from = eye.look; eye.to = [rnd(-3, 3), rnd(-2, 2)]; eye.moveT = 0
+        eye.from = eye.look; eye.to = P.coordinated ? lookAt(eye.cell) : [rnd(-3, 3), rnd(-2, 2)]; eye.moveT = 0
         eye.next = eye.t + rnd(0.8, 2.2)
       }
       const k = 1 - (1 - Math.min(1, eye.moveT / 0.1)) ** 3
@@ -242,19 +247,18 @@ query = "eyes=20&random=true"
   // A random place for a random size that keeps clear of the other eyes, or null.
   function freeCell() {
     const m = Theme.px('--margin')
-    // the largest eye as in single mode, smaller ones down to a quarter of it; with many
-    // eyes all a bit smaller, so they find room
-    const crowd = Math.min(1, 1.6 / Math.sqrt(Math.min(P.eyes, 8)))
-    const sMax = Math.min((W - 2 * m) * P.size / EW, (H - 2 * m) * 0.8 / EH) * crowd
-    for (let tries = 0; tries < 60; tries++) {
+    // the largest eye as in single mode, smaller ones down to a quarter of it (the number of
+    // eyes does not change the sizes: more eyes just take longer)
+    const sMax = Math.min((W - 2 * m) * P.size / EW, (H - 2 * m) * 0.8 / EH)
+    for (let tries = 0; tries < 200; tries++) {
       const s = sMax * rnd(0.25, 1)
       const w = EW * s, h = EH * s
       if (w > W - 2 * m || h > H - 2 * m) continue
       const x = rnd(m, W - m - w), y = rnd(m, H - m - h)
-      // never overlapping, never too close: a gap of half the larger eye's height
+      // never overlapping, never too close: a gap of a third of the larger eye's height
       const clear = eyes.every(e => {
         if (e.phase === 'gone') return true
-        const c = e.cell, g = 0.5 * Math.max(h, EH * c.s)
+        const c = e.cell, g = 0.33 * Math.max(h, EH * c.s)
         return x + w + g < c.x || c.x + EW * c.s + g < x || y + h + g < c.y || c.y + EH * c.s + g < y
       })
       if (clear) return { x, y, s }
@@ -262,7 +266,39 @@ query = "eyes=20&random=true"
     return null
   }
 
+  // ---------- the spot all eyes look at (coordinated) ----------
+  // A point in the room in screen pixels: x, y over the screen, z the distance in front of
+  // it. It drifts smoothly from one random waypoint to the next.
+  const spot = { from: null, to: null, t: 0, len: 1 }
+  function wanderTo() {
+    const big = Math.max(W, H)
+    return [rnd(-0.3, 1.3) * W, rnd(-0.3, 1.3) * H, rnd(0.25, 2.5) * big]
+  }
+  function spotNow() {
+    if (!spot.to) { spot.from = wanderTo(); spot.to = wanderTo(); spot.len = rnd(3, 7) }
+    const k = ease(Math.min(1, spot.t / spot.len))
+    return spot.from.map((v, i) => v + (spot.to[i] - v) * k)
+  }
+  function updateSpot(dt) {
+    spotNow()
+    spot.t += dt
+    if (spot.t >= spot.len) { spot.from = spot.to; spot.to = wanderTo(); spot.t = 0; spot.len = rnd(3, 7) }
+  }
+  // Where an eye in this cell looks to see the spot: its gaze, as the look offset of the
+  // drawing (the pupil's shift), kept within how far the eye can turn.
+  function lookAt(cell) {
+    const [tx, ty, tz] = spotNow()
+    const ex = cell.x + IRIS[0] * cell.s, ey = cell.y + IRIS[1] * cell.s
+    const v = [tx - ex, ty - ey, Math.max(1, tz)], n = Math.hypot(...v)
+    let gx = v[0] / n, gy = v[1] / n
+    const mx = 3 / EYE.pupil, my = 2 / EYE.pupil
+    const over = Math.hypot(gx / mx, gy / my)
+    if (over > 1) { gx /= over; gy /= over }
+    return [gx * EYE.pupil, gy * EYE.pupil]
+  }
+
   function update(dt) {
+    if (P.coordinated) updateSpot(dt)
     for (const e of eyes) updateEye(e, dt)
     eyes = eyes.filter(e => e.phase !== 'gone')
     if (toCome > 0) {
@@ -271,8 +307,8 @@ query = "eyes=20&random=true"
         const cell = freeCell()
         if (cell) {
           const e = newEye(cell, 0); enter(e, 'opening'); eyes.push(e)
-          toCome--; spawnIn = rnd(0.3, 1.4)
-        } else spawnIn = 0.4                     // full: try again soon
+          toCome--; spawnIn = rnd(0.15, 0.7)
+        } else spawnIn = 0.25                    // full: try again soon
       }
     }
     if (toCome === 0 && eyes.length === 0 && !ended) {
