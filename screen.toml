@@ -1,63 +1,64 @@
-title    = "Deep Cyber"
+title = "Deep Cyber"
 rotation = "random"
+no_repeat_pages = 3
 
 [params]
 theme = "dc"
 duration = "15s"
 
 [[page]]
-path     = "deep-logo.html?color=white"
+path = "deep-logo.html?color=white"
 
 [[page]]
-path     = "life.html"
+path = "life.html"
 
 [[page]]
-path     = "wireworld.html"
+path = "wireworld.html"
 
 [[page]]
-path     = "flame.html"
+path = "flame.html"
 
 [[page]]
-path     = "wator.html"
+path = "wator.html"
 duration = "20s"
 
 [[page]]
-path     = "radar.html"
-uses     = ["radar", "radar_times", "map", "weather"]
+path = "radar.html"
+uses = ["radar", "radar_times", "map", "weather"]
 
 [[page]]
-path     = "40c3/clock.html"
+path = "40c3/clock.html"
 
 [[page]]
-path     = "40c3/citizens.html"
+path = "40c3/citizens.html"
 
 [[page]]
-path     = "40c3/logos.html"
+path = "40c3/logos.html"
 
 [[page]]
-path     = "40c3/logo-pool.html?racks=1"
+path = "40c3/logo-pool.html?racks=1"
 duration = "3m"
 
 [[page]]
-path     = "40c3/67.html"
+path = "40c3/67.html"
 duration = "5s"
 
 [[page]]
-path     = "argos.html"
+path = "argos.html"
 
 [[page]]
-path     = "argustos.html?coordinated=true&done=true&eyes=50&open=20s&random=true&size=0.1&vessels=0.0"
+path = "argustos.html?coordinated=true&done=true&eyes=50&open=20s&random=true&size=0.1&vessels=0.0"
 
 [[page]]
-path     = "argustos.html?done=true&open=20s"
+path = "argustos.html?done=true&open=20s"
 duration = "2m"
 
 [[page]]
-path     = "mandelbrot.html"
+path = "mandelbrot.html"
 duration = "20s"
 
 [[page]]
-path     = "deep-cyber-38c3.html"
+path = "deep-cyber-38c3.html"
 
 # The owl's reminder: interrupts the rotation every night around midnight.
 [[override]]
@@ -69,51 +70,51 @@ when = { from = "23:53", until = "00:00:30" }   # overnight
 # The token: the backend's DEEPSPLAY_TOKEN, or the secret named by interrupt_token in the host
 # configuration.
 [[interrupt]]
-name        = "doorbell"
-path        = "doorbell.html"
-duration    = "10s"
-priority    = 10
+name = "doorbell"
+path = "doorbell.html"
+duration = "10s"
+priority = 10
 description = "Someone is at the door"
 
 # Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
 # Runs only where the host configuration allows it (backend = true).
 [backend]
-dir     = "backend"
+dir = "backend"
 command = ["python", "app.py", "{port}"]
-health  = "/health"
+health = "/health"
 
 # Upstreams for radar.html.
 # Radar frames: every URL names a fixed time (and, for forecasts, the DWD run),
 # so an answer never changes and can be kept long. XML answers are DWD errors.
 [upstream.radar]
-url            = "https://maps.dwd.de/geoserver/dwd/wms"
-cache_ttl      = "2h"
-timeout        = "30s"         # large areas take the DWD several seconds
+url = "https://maps.dwd.de/geoserver/dwd/wms"
+cache_ttl = "2h"
+timeout = "30s"         # large areas take the DWD several seconds
 accepted_types = ["image/png"]
-cache_size     = "40MB"
+cache_size = "40MB"
 
 # Available times of the radar layer: the newest DWD run decides which frames
 # all screens ask for. Short-lived, refreshed in the background.
 [upstream.radar_times]
-url            = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/wms"
-cache_ttl      = "1m"
-stale_ttl      = "1h"
-refresh        = true
+url = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/wms"
+cache_ttl = "1m"
+stale_ttl = "1h"
+refresh = true
 accepted_types = ["text/xml", "application/vnd.ogc.wms_xml"]
 
 # BKG TopPlusOpen map tiles: they do not change, keep them a day.
 [upstream.map]
-url            = "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0"
-cache_ttl      = "24h"
-stale_ttl      = "720h"
+url = "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0"
+cache_ttl = "24h"
+stale_ttl = "720h"
 accepted_types = ["image/png"]
-cache_size     = "60MB"
+cache_size = "60MB"
 
 # Bright Sky (JSON API over DWD open data): current weather for radar.html. The DWD
 # observations come every 10 to 30 minutes.
 [upstream.weather]
-url            = "https://api.brightsky.dev"
-cache_ttl      = "10m"
-stale_ttl      = "6h"
-refresh        = true
+url = "https://api.brightsky.dev"
+cache_ttl = "10m"
+stale_ttl = "6h"
+refresh = true
 accepted_types = ["application/json"]
