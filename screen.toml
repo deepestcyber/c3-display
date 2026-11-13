@@ -85,7 +85,7 @@ description = "Someone is at the door"
 [[interrupt]]
 name = "cyber-alarm"
 path = "interrupts/cyber-alarm.html"
-duration = "30s"
+duration = "15s"
 priority = 20
 description = "Cyber alarm"
 
