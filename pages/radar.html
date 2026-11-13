@@ -142,6 +142,7 @@ query = "forecast=2h&loop=20s"
   .timeline span.now { height: 100%; background: var(--accent); }
   .timeline span.future { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
   .timeline span.on { height: 100%; background: var(--ink); box-shadow: none; }
+  .timeline span.pending { opacity: 0.3; }
   .credits { font-size: var(--fs-kicker); color: var(--ink-soft); padding: 0.5em 0.8em; }
   #sub:empty::before { content: "\00a0"; }
   .weather { display: none; }
@@ -258,14 +259,17 @@ query = "forecast=2h&loop=20s"
     return frames
   }
 
-  // Loads all frames; a frame that fails (e.g. an error document passed on) stays out.
-  async function loadFrames(frames) {
-    await Promise.all(frames.map(async f => {
+  // Starts loading all frames at once and returns at once; each frame gets its image when
+  // it arrives (the DWD takes seconds per frame), a frame that fails (e.g. an error document
+  // passed on) gets null. `loaded` settles when all are through.
+  function loadFrames(frames) {
+    const loaded = Promise.all(frames.map(async f => {
       const img = new Image()
       img.src = f.url
       try { await img.decode(); f.img = img } catch { f.img = null }
+      arrived = true
     }))
-    return frames
+    return { frames, loaded }
   }
 
   // ---------- view and map ----------
@@ -359,7 +363,8 @@ query = "forecast=2h&loop=20s"
   }
 
   // ---------- drawing ----------
-  let frames = [], next = null, shown = -1, redraw = true
+  // `frames`: all frames of the shown run, loaded or not; only loaded ones are animated
+  let frames = [], next = null, shown = null, redraw = true, arrived = false
 
   function drawFrame(f) {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -383,19 +388,22 @@ query = "forecast=2h&loop=20s"
     }
   }
 
+  // one mark per frame of the run; frames still on their way are faint
   function buildTimeline() {
     const tl = el('timeline')
     tl.replaceChildren(...frames.map(f => {
       const s = document.createElement('span')
-      if (f.forecast) s.className = 'future'
-      else if (f === lastMeasured()) s.className = 'now'
+      if (f.forecast) s.classList.add('future')
+      else if (f === lastMeasured()) s.classList.add('now')
+      if (!f.img) s.classList.add('pending')
+      if (f === shown) s.classList.add('on')
       return s
     }))
   }
   const lastMeasured = () => frames.filter(f => !f.forecast).at(-1)
 
-  function showLabels(i) {
-    const f = frames[i]
+  function showLabels(f) {
+    const i = frames.indexOf(f)
     const now = lastMeasured()
     el('kind').textContent = f.forecast ? 'Forecast' : 'Measured'
     el('time').textContent = clock.format(f.time)
@@ -406,18 +414,21 @@ query = "forecast=2h&loop=20s"
     for (let k = 0; k < spans.length; k++) spans[k].classList.toggle('on', k === i)
   }
 
-  // One pass: every frame one unit, the newest measurement and the last frame held longer.
+  // One pass over the frames that have arrived: every frame one unit, the newest
+  // measurement and the last frame held longer.
   const HOLD_NOW = 4, HOLD_END = 3
   function frameAt(t) {
-    const nowIndex = frames.indexOf(lastMeasured())
-    const units = frames.length + HOLD_NOW + HOLD_END
+    const ready = frames.filter(f => f.img)
+    if (!ready.length) return null
+    const now = lastMeasured()
+    const units = ready.length + (ready.includes(now) ? HOLD_NOW : 0) + HOLD_END
     let u = (t % loopMs) / loopMs * units
-    for (let i = 0; i < frames.length; i++) {
-      const w = 1 + (i === nowIndex ? HOLD_NOW : 0) + (i === frames.length - 1 ? HOLD_END : 0)
-      if (u < w) return i
+    for (let i = 0; i < ready.length; i++) {
+      const w = 1 + (ready[i] === now ? HOLD_NOW : 0) + (i === ready.length - 1 ? HOLD_END : 0)
+      if (u < w) return ready[i]
       u -= w
     }
-    return frames.length - 1
+    return ready.at(-1)
   }
   const loopMs = P.loop || themeDuration || 12000
 
@@ -465,12 +476,21 @@ query = "forecast=2h&loop=20s"
       const times = await readTimes()
       // a new run, or frames of this one that failed last time (the rest are cache hits)
       if (times.run !== currentRun || incomplete) {
-        const loaded = await loadFrames(framesFor(times))
-        const usable = loaded.filter(f => f.img)
-        if (usable.some(f => !f.forecast)) {
-          next = usable; currentRun = times.run
-          incomplete = usable.length < loaded.length
+        const run = loadFrames(framesFor(times))
+        currentRun = times.run
+        if (!frames.some(f => f.img)) {
+          // nothing on screen yet: show the frames as they arrive
+          next = run.frames
+        } else {
+          // a run is shown: switch once the new run's newest measurement is there (the
+          // older ones are mostly cache hits), its forecast fills in while it plays
+          const newest = run.frames.filter(f => !f.forecast).at(-1)
+          const wait = setInterval(() => {
+            if (!newest || newest.img !== undefined) { clearInterval(wait); if (newest && newest.img) next = run.frames }
+          }, 200)
         }
+        await run.loaded
+        incomplete = run.frames.some(f => !f.img)
       }
     } catch (e) {
       console.warn('radar:', e.message)
@@ -482,24 +502,29 @@ query = "forecast=2h&loop=20s"
 
   Theme.ready.then(async () => {
     layout()
-    addEventListener('resize', () => { layout(); shown = -1 })
+    addEventListener('resize', () => { layout(); redraw = true })
     // the map shows at once; the radar joins when its frames are loaded
     poll()
     setInterval(poll, TIMES_POLL)
     if (P.weather) { pollWeather(); setInterval(pollWeather, WEATHER_POLL) }
 
+    let pass = 0
     function frame(t) {
-      // a new run starts at the beginning of a pass
-      if (next && (!frames.length || frameAt(t - started) < shown || shown === -1)) {
-        frames = next; next = null; started = t; shown = -1
+      // a new run starts at the beginning of a pass (at once while nothing is shown)
+      const p = Math.floor((t - started) / loopMs)
+      if (next && (!shown || p !== pass)) {
+        frames = next; next = null; started = t; shown = null
         buildTimeline()
       }
-      if (frames.length) {
-        const i = frameAt(t - started)
-        if (i !== shown || redraw) {
-          drawFrame(frames[i])
-          if (i !== shown) showLabels(i)
-          shown = i; redraw = false
+      pass = Math.floor((t - started) / loopMs)
+      // frames that arrived: mark them, they join the animation
+      if (arrived) { arrived = false; buildTimeline() }
+      const f = frameAt(t - started)
+      if (f) {
+        if (f !== shown || redraw) {
+          drawFrame(f)
+          if (f !== shown) { shown = f; showLabels(f) }
+          redraw = false
         }
       } else if (redraw) { drawFrame(null); redraw = false }
       requestAnimationFrame(frame)
