@@ -72,6 +72,7 @@ description = "Forecast shown after the newest measurement (the DWD forecasts up
 
 [params.loop]
 type        = "duration"
+from        = "duration"
 min         = "2s"
 description = "Length of one pass of the animation; default: the display time, else 12s."
 
@@ -187,7 +188,6 @@ query = "forecast=2h&loop=20s"
   'use strict'
 
   const P = Deepsplay.params()
-  const themeDuration = Deepsplay.params('theme').duration || 0
   const LAYER = 'dwd:Niederschlagsradar'
   const STEP = 5 * 60 * 1000             // DWD radar and forecast step
   const TIMES_POLL = 60 * 1000           // a cache hit for all but one screen a minute
@@ -430,7 +430,7 @@ query = "forecast=2h&loop=20s"
     }
     return ready.at(-1)
   }
-  const loopMs = P.loop || themeDuration || 12000
+  const loopMs = P.loop || 12000
 
   // ---------- weather ----------
   const WEATHER_POLL = 5 * 60 * 1000

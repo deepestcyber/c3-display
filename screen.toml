@@ -1,9 +1,8 @@
-title    = "Reel"
+title    = "Deep Cyber"
 rotation = "random"
 
 [params]
 theme = "dc"
-progress = false
 duration = "15s"
 
 [[page]]
@@ -37,7 +36,7 @@ path     = "40c3/logos.html"
 
 [[page]]
 path     = "40c3/logo-pool.html?racks=1"
-duration = "5m"                                # upper limit: ends itself after one rack
+duration = "3m"
 
 [[page]]
 path     = "40c3/67.html"
@@ -51,6 +50,7 @@ path     = "argustos.html?coordinated=true&done=true&eyes=50&open=20s&random=tru
 
 [[page]]
 path     = "argustos.html?done=true&open=20s"
+duration = "2m"
 
 [[page]]
 path     = "mandelbrot.html"

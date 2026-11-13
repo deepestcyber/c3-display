@@ -21,7 +21,7 @@
 
   // Parameter definitions (ADR 15): read here and documented by deepsplay.
   const T = Deepsplay.helper('theme', `
-description = "Shared theme: colours, fonts, margins and a progress bar."
+description = "Shared theme: colours, fonts and margins."
 
 [params.theme]
 type        = "enum"
@@ -57,16 +57,6 @@ description = "Distance of text to the screen edge: a number (vmin), or with px,
 [params.field-margin]
 type        = "string"
 description = "Distance of full-screen content to the screen edge, in the same format as margin."
-
-[params.progress]
-type        = "bool"
-default     = true
-description = "Show the progress bar over the display time."
-
-[params.duration]
-type        = "duration"
-from        = "duration"
-description = "Display time; shows a progress bar filling over it."
 `)
 
   const base = new URL('.', document.currentScript.src)
@@ -150,17 +140,5 @@ description = "Display time; shows a progress bar filling over it."
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go)
       else go()
     }),
-  }
-
-  // ---------- progress bar ----------
-  const duration = T.duration || 0
-  if (T.progress !== false && duration > 0) {
-    document.addEventListener('DOMContentLoaded', () => {
-      const bar = document.createElement('div')
-      bar.className = 'theme-progress'
-      bar.style.transitionDuration = `${duration}ms`
-      document.body.appendChild(bar)
-      requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.add('running')))
-    })
   }
 })()
