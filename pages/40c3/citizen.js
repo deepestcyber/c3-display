@@ -44,7 +44,8 @@
   // `tiltedAt`: where tilted hats sit instead, for the right side (mirrored for the left):
   // the middle of the brim at `x`, `y` (shares of the head), turned by `angle` degrees.
   const HEADS = {
-    Head0: { face: [0.14, 0.08, 0.86, 0.94], skull: [0.5, 0.78], color: 'green' },
+    Head0: { face: [0.14, 0.08, 0.86, 0.94], skull: [0.5, 0.78], color: 'green',
+             deco: { Deco7: { sink: 0.32 } } }, // pointed hat deeper
     Head1: { face: [0.08, 0.08, 0.92, 0.94], skull: [0.5, 0.84], color: 'green' },
     Head2: { face: [0.06, 0.06, 0.94, 0.94], skull: [0.5, 0.94], color: 'white', tiltedAt: { x: 0.80, y: 0.17, angle: 40 }, // tilted hats on the corners
              deco: { Deco1: { width: 1.13, sink: 0.45 } } }, // big cap
@@ -59,7 +60,7 @@
     Head6: { face: [0.08, 0.06, 0.92, 0.94], skull: [0.5, 0.84], color: 'white' },
     Head7: { face: [0.10, 0.06, 0.90, 0.68], skull: [0.5, 0.84], color: 'black', horn: 0.07, outline: 0.035,
              chin: { x: 0.5, y: 0.722, r: 0.5 }, // horn below the outline; the face circle (with outline), measured
-             deco: { Deco7: { sink: 0.30 }, Deco7t: { sink: 0.45 }, Deco7tl: { sink: 0.28 } } }, // pointed hats deeper
+             deco: { Deco7: { sink: 0.30 }, Deco7t: { sink: 0.45 }, Deco7tl: { sink: 0.28 }, Deco1t: { sink: 0.55 }, Deco1tl: { sink: 0.55, shift: -.05 } } }, // hats deeper
   }
 
   // Features: centre in the face box (fractions), size as part width per face width at the
