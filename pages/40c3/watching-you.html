@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="40c3" data-variant="key">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watching You</title>
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "The 40C3 logo, big: 40C3 is watching you, be a model citizen."
+details     = """
+The green 40C3 logo in the middle of the screen, "40C3 is watching you" above it and
+"be a model citizen" below. Static.
+
+Fixed to the 40C3 theme in its key colours (green on almost black) with
+<html data-theme data-variant>, so ?theme= and ?variant= are ignored.
+"""
+author      = "kratenko"
+credits     = "Logo from the 40C3 style guide"
+uses = ["theme"]
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<style>
+  .scene {
+    position: fixed; inset: var(--field-margin);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4vh; text-align: center;
+  }
+  .scene p {
+    margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 12vmin;
+    color: var(--accent); text-shadow: 0 0 1.5vmin var(--glow);
+  }
+  .scene img {
+    display: block; height: 55vh; max-width: 90vw; object-fit: contain;
+    filter: drop-shadow(0 0 1.5vmin var(--glow));
+  }
+</style>
+</head>
+<body>
+<div class="scene">
+  <p>40C3 IS WATCHING YOU</p>
+  <img src="../guides/40c3/Assets/Logos/40C3_Logo_0.svg" alt="40C3">
+  <p>BE A MODEL CITIZEN</p>
+</div>
+</body>
+</html>
