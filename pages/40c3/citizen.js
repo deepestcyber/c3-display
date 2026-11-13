@@ -46,16 +46,20 @@
   const HEADS = {
     Head0: { face: [0.14, 0.08, 0.86, 0.94], skull: [0.5, 0.78], color: 'green' },
     Head1: { face: [0.08, 0.08, 0.92, 0.94], skull: [0.5, 0.84], color: 'green' },
-    Head2: { face: [0.06, 0.06, 0.94, 0.94], skull: [0.5, 0.94], color: 'white', tiltedAt: { x: 0.80, y: 0.17, angle: 40 } }, // tilted hats on the corners
+    Head2: { face: [0.06, 0.06, 0.94, 0.94], skull: [0.5, 0.94], color: 'white', tiltedAt: { x: 0.80, y: 0.17, angle: 40 }, // tilted hats on the corners
+             deco: { Deco1: { width: 1.13, sink: 0.45 } } }, // big cap
     Head3: { face: [0.10, 0.20, 0.90, 0.94], skull: [0.5, 0.80], color: 'black', horn: 0.28, horns: false,
-             hair: { Hair0: { width: 0.85, top: -0.12 }, Hair0x: { width: 0.85, top: -0.28 }, Hair2x: { top: -0.06 } } }, // cat: between the ears; its ears are enough; ears out of the hair
+             hair: { Hair0: { width: 0.85, top: -0.12 }, Hair0x: { width: 0.85, top: -0.28 }, Hair2x: { top: -0.06 } }, // cat: between the ears; its ears are enough; ears out of the hair
+             deco: { Deco7: { depth: 0.39, width: 1.2 }, Deco1: { depth: 0.30, width: 1.1 }, Deco1t: { sink: 0.85 }, Deco1tl: { sink: 0.93, shift: -.05 }, Deco5t: { sink: 0.20, width: 0.72, x: 0.30, tilt: 1.5, shift: -0.05 }, Deco5tl: { sink: 0.20, width: 0.72, x: -0.24, tilt: 1.0 }, Deco7t: { sink: 0.60, width: 0.60, x: 0.245, tilt: 0.4, flip: true }, Deco7tl: { sink: 0.50, width: 0.66, x: -0.21, tilt: 0.30, flip: false } } }, // tilted hats on the ears: down onto them; pointed hats curl the other way here
     Head4: { face: [0.24, 0.40, 0.76, 0.96], skull: [0.5, 0.22], color: 'white', scale: 1.6, horn: 0.24, hornsX: 0.21, hornsTilt: 0.55, // horns on the sides, tilted
              hair: { Hair2: { top: -0.05 } }, // the crown sunk onto the tip
              deco: { Deco7: { depth: 0.19 }, Deco5: { depth: 0.14 }, Deco1: { depth: 0.12 } } }, // small hats: pointed hat's brim on the edges, hat and cap lower, tip just hidden
-    Head5: { face: [0.10, 0.04, 0.90, 0.64], skull: [0.5, 0.80], color: 'white' },
+    Head5: { face: [0.10, 0.04, 0.90, 0.64], skull: [0.5, 0.80], color: 'white',
+             deco: { Deco7: { sink: 0.31, width: 0.95 }, Deco7w: { sink: 0.55, width: 1.25 } } }, // pointed hat, plain and big
     Head6: { face: [0.08, 0.06, 0.92, 0.94], skull: [0.5, 0.84], color: 'white' },
     Head7: { face: [0.10, 0.06, 0.90, 0.68], skull: [0.5, 0.84], color: 'black', horn: 0.07, outline: 0.035,
-             chin: { x: 0.5, y: 0.722, r: 0.5 } }, // horn below the outline; the face circle (with outline), measured
+             chin: { x: 0.5, y: 0.722, r: 0.5 }, // horn below the outline; the face circle (with outline), measured
+             deco: { Deco7: { sink: 0.30 }, Deco7t: { sink: 0.45 }, Deco7tl: { sink: 0.28 } } }, // pointed hats deeper
   }
 
   // Features: centre in the face box (fractions), size as part width per face width at the
@@ -115,7 +119,7 @@
     // `sink` of its height into the body, tilted by `tilt` of the shoulder's slope; behind
     // the head. Without a body, beside the head.
     Deco4: { slot: 'side', at: 'side', height: 0.48, x: 0.08, sink: 0.12, tilt: 0.8 },
-    Deco5: { slot: 'top', at: 'top', width: 1.15, sink: 0.30 },                // hat
+    Deco5: { slot: 'top', at: 'top', width: 1.15, sink: 0.30, notHeads: ['Head3'] }, // hat (not on the cat: does not suit it)
     Deco6: { slot: 'eyes', at: 'face', x: 0.5, y: 0.36, width: 0.98 },         // glasses
     Deco7: { slot: 'top', at: 'top', width: 0.95, sink: 0.22 },                // pointed hat
     Deco8: { slot: 'top', at: 'top', height: 0.55, sink: 0.08, horn: true },   // horn
@@ -141,10 +145,15 @@
     // width, `depth`: where the hat's lower edge sits (share of the head height), `x`: shift
     // by a share of its width. (No big cap: it does not suit the triangle.)
     Deco5x: { slot: 'top', at: 'big', part: 'Deco5', heads: ['Head4'], width: 1.00, depth: 0.40 }, // hat
-    Deco7x: { slot: 'top', at: 'big', part: 'Deco7', heads: ['Head4'], width: 0.70, depth: 0.48 }, // pointed hat
+    Deco7x: { slot: 'top', at: 'big', part: 'Deco7', heads: ['Head4'], width: 0.65, depth: 0.58 }, // pointed hat
+    // derived: a bigger pointed hat pulled down further, for the long head and the round head
+    // with a neck (they keep the plain one too); `width` per skull width, `sink` of its height,
+    // as for Deco7 (Head5 sets its own values)
+    Deco7w: { slot: 'top', at: 'top', part: 'Deco7', heads: ['Head5', 'Head7'], width: 1.17, sink: 0.50 },
     // derived: smaller hats sitting tilted on a side of the head: `width` per skull
     // width, centred at `x` of the skull width right (left if negative) of its middle, following
-    // `tilt` of the outline's slope there, the brim sunk in by `sink` of the hat's height
+    // `tilt` of the outline's slope there, the brim sunk in by `sink` of the hat's height;
+    // `shift` (per skull width, right if positive) then moves the fitted hat sideways only
     Deco1t: { slot: 'top', at: 'tilted', part: 'Deco1', notHeads: ['Head4'], width: 0.62, x: 0.24, tilt: 1.0, sink: 0.25 }, // cap
     Deco5t: { slot: 'top', at: 'tilted', part: 'Deco5', notHeads: ['Head4'], width: 0.72, x: 0.24, tilt: 1.0, sink: 0.20 }, // hat
     Deco7t: { slot: 'top', at: 'tilted', part: 'Deco7', notHeads: ['Head4'], width: 0.55, x: 0.24, tilt: 1.0, sink: 0.15 }, // pointed hat
@@ -521,7 +530,8 @@
           const a = Math.atan(slope) * D.tilt
           // the brim's middle on the outline; deep enough that both ends touch the head
           const base = topAt(cx / head.w) + D.sink * h + dx * Math.abs(Math.sin(a) - slope * Math.cos(a)) * 0.5
-          put(D.part, cx - w / 2, base - h, w, 5, !!D.flip, { a: a * 180 / Math.PI, cx, cy: base })
+          const sx = cx + (D.shift || 0) * skullW
+          put(D.part, sx - w / 2, base - h, w, 5, !!D.flip, { a: a * 180 / Math.PI, cx: sx, cy: base })
           continue
         } else if (D.at === 'big') {
           w = head.w * D.width
