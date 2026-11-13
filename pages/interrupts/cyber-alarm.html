@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en" data-theme="dc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyber alarm</title>
+<link rel="stylesheet" href="../theme/theme.css">
+<script type="application/toml" id="deepsplay-page">
+description = "CYBER ALARM: a big flashing warning sign, for the cyber-alarm interrupt."
+details     = """
+Not part of the rotation: shown on all screens when the interrupt "cyber-alarm" is triggered
+(see screen.toml), for its duration or until it is ended with DELETE.
+
+A warning triangle in yellow and black over "CYBER ALARM", between moving hazard stripes,
+in the Deep Cyber layout. The line below depends on what is given:
+  who and level: "<who> reports Cyber Alarm level <level>"
+  only who:      "<who> reports a Cyber Alarm"
+  only level:    "A Cyber Alarm level <level> has been reported"
+  neither:       no line.
+
+Fixed to the Deep Cyber theme with <html data-theme>, so ?theme= is ignored; the warning
+colours are its own.
+
+Trigger it with
+  curl -X POST -H "Authorization: Bearer $TOKEN" "http://<host>:4000/c/<config>/interrupts/cyber-alarm?who=Ada&level=3"
+"""
+author      = "kratenko"
+uses        = ["theme"]
+
+[params.who]
+type        = "string"
+description = "Who reports the alarm."
+
+[params.level]
+type        = "string"
+description = "The alarm level, e.g. 3."
+
+[[variants]]
+label = "Name and level"
+query = "who=Ada&level=3"
+
+[[variants]]
+label = "Only a name"
+query = "who=Ada"
+
+[[variants]]
+label = "Only a level"
+query = "level=5"
+</script>
+<script src="/lib/v1/deepsplay.js"></script>
+<script src="../theme/theme.js"></script>
+<style>
+  :root {
+    --warn: #ffd200;
+    --warn-ink: #0b0b0b;
+    --stripes: repeating-linear-gradient(-45deg,
+      var(--warn) 0 4vmin, var(--warn-ink) 4vmin 8vmin);
+  }
+  body { background: var(--bg); overflow: hidden; }
+
+  /* hazard tape at the top and bottom, running sideways */
+  .tape {
+    position: fixed; left: 0; right: 0; height: 9vmin;
+    background: var(--stripes); background-size: 11.31vmin 11.31vmin;
+    box-shadow: 0 0 3vmin rgba(255, 210, 0, 0.35);
+  }
+  /* one stripe period (8vmin across the stripes is 11.31vmin along the tape) per run */
+  .tape.top { top: 0; animation: run-left 0.267s linear infinite; }
+  .tape.bottom { bottom: 0; animation: run-right 0.267s linear infinite; }
+  @keyframes run-left { from { background-position: 0 0; } to { background-position: -11.31vmin 0; } }
+  @keyframes run-right { from { background-position: 0 0; } to { background-position: 11.31vmin 0; } }
+
+  .alarm {
+    position: fixed; inset: calc(9vmin + var(--margin)) var(--margin);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3vmin; text-align: center;
+  }
+
+  /* the warning triangle: yellow, black border, black "!" */
+  /* sign and title pulse together: swell with a bright glow, sink back dim */
+  .sign {
+    width: 42vmin; height: auto; display: block;
+    animation: pulse-sign 0.8s ease-in-out infinite;
+  }
+  @keyframes pulse-sign {
+    0%, 100% { transform: scale(0.9);  filter: drop-shadow(0 0 1vmin rgba(255, 210, 0, 0.3)) brightness(0.75); }
+    50%      { transform: scale(1.12); filter: drop-shadow(0 0 6vmin rgba(255, 210, 0, 0.9)) brightness(1.1); }
+  }
+
+  .title {
+    font-family: var(--font-display); font-weight: 800; font-size: 14vmin; line-height: 1;
+    letter-spacing: 0.06em; color: var(--warn);
+    animation: pulse-title 0.8s ease-in-out infinite;
+  }
+  @keyframes pulse-title {
+    0%, 100% { transform: scale(0.94); opacity: 0.7; text-shadow: 0 0 0.1em rgba(255, 210, 0, 0.3); }
+    50%      { transform: scale(1.06); opacity: 1;   text-shadow: 0 0 0.2em rgba(255, 210, 0, 1), 0 0 0.6em rgba(255, 210, 0, 0.7); }
+  }
+  .report {
+    font-family: var(--font-ui); font-weight: 600; font-size: 6vmin; color: var(--ink);
+    max-width: 90vw;
+  }
+  .report b { color: var(--warn); font-weight: 700; }
+  .report:empty { display: none; }
+
+</style>
+</head>
+<body>
+<div class="tape top"></div>
+<div class="alarm">
+  <svg class="sign" viewBox="0 0 100 88" aria-hidden="true">
+    <path d="M50 4 L96 84 H4 Z" fill="#ffd200" stroke="#0b0b0b" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M50 14 L88 79 H12 Z" fill="none" stroke="#0b0b0b" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="45" y="32" width="10" height="28" rx="3" fill="#0b0b0b"/>
+    <circle cx="50" cy="69" r="5.5" fill="#0b0b0b"/>
+  </svg>
+  <div class="title">CYBER ALARM</div>
+  <div class="report" id="report"></div>
+</div>
+<div class="tape bottom"></div>
+<script>
+(() => {
+  'use strict'
+  const P = Deepsplay.params()
+  const who = (P.who || '').trim(), level = (P.level || '').trim()
+  const b = text => { const e = document.createElement('b'); e.textContent = text; return e }
+  const report = document.getElementById('report')
+  if (who && level) report.append(b(who), ' reports Cyber Alarm level ', b(level))
+  else if (who) report.append(b(who), ' reports a Cyber Alarm')
+  else if (level) report.append('A Cyber Alarm level ', b(level), ' has been reported')
+})()
+</script>
+</body>
+</html>

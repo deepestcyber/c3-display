@@ -75,10 +75,19 @@ when = { from = "23:53", until = "00:00:30" }   # overnight
 # configuration.
 [[interrupt]]
 name = "doorbell"
-path = "doorbell.html"
+path = "interrupts/doorbell.html"
 duration = "10s"
 priority = 10
 description = "Someone is at the door"
+
+# Cyber alarm: a big warning sign on all screens.
+#   curl -X POST -H "Authorization: Bearer $TOKEN" "http://<host>:4000/c/<config>/interrupts/cyber-alarm?who=Ada&level=3"
+[[interrupt]]
+name = "cyber-alarm"
+path = "interrupts/cyber-alarm.html"
+duration = "30s"
+priority = 20
+description = "Cyber alarm"
 
 # Python backend for python.html (backend/, see deepsplay docs/pages.md "Backends").
 # Runs only where the host configuration allows it (backend = true).
