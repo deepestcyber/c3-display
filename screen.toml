@@ -48,6 +48,7 @@ path = "argos.html"
 
 [[page]]
 path = "argustos.html?coordinated=true&done=true&eyes=50&open=20s&random=true&size=0.1&vessels=0.0"
+duration = "2m"
 
 [[page]]
 path = "argustos.html?done=true&open=20s"
